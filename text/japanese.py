@@ -3,11 +3,6 @@
 import math
 import re
 import unicodedata
-import os
-
-# personal config, delete this before pushing
-os.environ['LD_LIBRARY_PATH'] = "/home/zhang/桌面/ws/cuda_l/cuda121/lib64"
-os.environ["BNB_CUDA_VERSION"] = "121"
 
 from transformers import AutoTokenizer
 
@@ -340,12 +335,12 @@ def kata2phoneme(text: str) -> str:
             x = _RULEMAP2.get(text[:2])
             if x is not None:
                 text = text[2:]
-                res += x.split(' ')[1:]
+                res += x.split(" ")[1:]
                 continue
         x = _RULEMAP1.get(text[0])
         if x is not None:
             text = text[1:]
-            res += x.split(' ')[1:]
+            res += x.split(" ")[1:]
             continue
         res.append(text[0])
         text = text[1:]
@@ -461,8 +456,6 @@ _CURRENCY_RX = re.compile(r"([$¥£€])([0-9.]*[0-9])")
 _NUMBER_RX = re.compile(r"[0-9]+(\.[0-9]+)?")
 
 
-#
-#
 def japanese_convert_numbers_to_words(text: str) -> str:
     # some of them become useless since g2p method have been using pyopenjtalk
     res = text
@@ -508,27 +501,32 @@ def japanese_convert_numbers_to_words(text: str) -> str:
 #
 #     return False
 
+
 rep_map = {
-    '：': ',',
-    '；': ',',
-    '，': ',',
-    '。': '.',
-    '！': '!',
-    '？': '?',
-    '\n': '.',
+    "：": ",",
+    "；": ",",
+    "，": ",",
+    "。": ".",
+    "！": "!",
+    "？": "?",
+    "\n": ".",
     "·": ",",
-    '、': ",",
-    '...': '…'
+    "、": ",",
+    "...": "…",
 }
-
-
 def replace_punctuation(text):
-    pattern = re.compile('|'.join(re.escape(p) for p in rep_map.keys()))
+    pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
 
     replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
-    replaced_text = re.sub(r'[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF' + "".join(punctuation) + r']+', '',
-                           replaced_text)
-    print('AFTER1:', replaced_text)
+
+    replaced_text = re.sub(
+        r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF"
+        + "".join(punctuation)
+        + r"]+",
+        "",
+        replaced_text,
+    )
+
     return replaced_text
 
 
@@ -615,3 +613,6 @@ if __name__ == '__main__':
     bert = get_bert_feature(text, word2ph)
 
     print(phones, tones, word2ph, bert.shape)
+
+
+
