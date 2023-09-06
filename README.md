@@ -2,6 +2,8 @@
 
 目前主要更改为把默认bert模型改为bert-large-japanese-v2，并薄纱了mecab-python3
 
+当前目标:焊接实验emotional-vits-VFFTA
+
 ---
 
 # Bert-VITS2
