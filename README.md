@@ -1,6 +1,6 @@
 ~~由于我试图安装mecab时遇到了一大堆报错所以~~删掉了原版g2p，并摆脱对mecab-python3的依赖，改成用pyopenjtalk实现
 
-目前主要解决了get_bert_feature的问题，并把默认bert模型改为bert-large-japanese-v2
+目前主要更改为把默认bert模型改为bert-large-japanese-v2，并薄纱了mecab-python3
 
 ---
 
