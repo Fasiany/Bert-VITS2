@@ -1,3 +1,5 @@
+# 不打算改main分支
+
 # Bert-VITS2
 
 VITS2 Backbone with bert
