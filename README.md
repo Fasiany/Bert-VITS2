@@ -1,8 +1,13 @@
+# **Untested**
+
+代码修改工作基本结束，但是尚未经实际运行调试(摸个鱼先)
+
+
 ~~由于我试图安装mecab时遇到了一大堆报错所以~~删掉了原版g2p，并摆脱对mecab-python3的依赖，改成用pyopenjtalk实现
 
 目前主要更改为把默认bert模型改为bert-large-japanese-v2，并薄纱了mecab-python3
 
-当前阶段目标:焊接实验emotional-vits-VFFTA
+当前阶段目标:~~焊接实验emotional-vits-VFFTA~~焊接基本完成，等待测试
 
 ---
 
