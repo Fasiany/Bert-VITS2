@@ -99,7 +99,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         audio, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
             raise ValueError(
-                "{} {} SR doesn't match target {} SR".format(
+                "{} {} SR doesn't match target {} SR".format(filename,
                     sampling_rate, self.sampling_rate
                 )
             )
@@ -146,41 +146,32 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
                 word2ph[i] = word2ph[i] * 2
             word2ph[0] += 1
         bert_path = wav_path.replace(".wav", ".bert.pt")
+        emotion_path = wav_path.replace(".wav", ".emo.npy")
         try:
             bert = torch.load(bert_path)
-            assert bert.shape[-1] == len(phone)
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
         except:
-            bert = get_bert(text, word2ph, language_str)
+            bert = get_bert(text, word2ph, language_str, "cuda")
             torch.save(bert, bert_path)
-            assert bert.shape[-1] == len(phone), phone
-
-        if language_str == "ZH":
-            bert = bert
-            ja_bert = torch.zeros(768, len(phone))
-        elif language_str == "JA":
-            ja_bert = bert
-            bert = torch.zeros(1024, len(phone))
-        else:
-            bert = torch.zeros(1024, len(phone))
-            ja_bert = torch.zeros(768, len(phone))
-        assert bert.shape[-1] == len(phone), (
-            bert.shape,
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
+        assert language_str == 'JA' "This project only supports Japanese for now."
+        emotion = torch.FloatTensor(np.load(emotion_path))
+        ja_bert = bert
+        # dimension info of bert:[1024, len(phonemes)]
+        assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+            ja_bert.shape,
             len(phone),
-            sum(word2ph),
-            p1,
-            p2,
-            t1,
-            t2,
-            pold,
-            pold2,
+            len(word2ph),
             word2ph,
             text,
-            w2pho,
-        )
+        )}"""
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
-        return bert, ja_bert, phone, tone, language
+        # TODO:I only finished the modification here
+        # TODO:modify TextAudioSpeakerCollate, check dataloader.py,
+        #  train_ms.py and other files to ensure if there is anything i need to modify
+        return emotion, ja_bert, phone, tone, language
 
     def get_sid(self, sid):
         sid = torch.LongTensor([int(sid)])
