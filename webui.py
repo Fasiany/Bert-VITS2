@@ -29,6 +29,8 @@ import webbrowser
 
 net_g = None
 
+# TODO:update webui since emotion support haven't been added for inference code
+
 
 def get_text(text, language_str, hps):
     norm_text, phone, tone, word2ph = clean_text(text, language_str)

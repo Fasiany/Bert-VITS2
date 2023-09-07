@@ -44,7 +44,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         self.min_text_len = getattr(hparams, "min_text_len", 1)
         self.max_text_len = getattr(hparams, "max_text_len", 300)
 
-        random.seed(1234)
+        random.seed(hparams['train'].seed)
         random.shuffle(self.audiopaths_sid_text)
         self._filter()
 
@@ -87,13 +87,13 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         # separate filename, speaker_id and text
         audiopath, sid, language, text, phones, tone, word2ph = audiopath_sid_text
 
-        bert, ja_bert, phones, tone, language = self.get_text(
+        emotion, ja_bert, phones, tone, language = self.get_text(
             text, word2ph, phones, tone, language, audiopath
         )
 
         spec, wav = self.get_audio(audiopath)
         sid = torch.LongTensor([int(self.spk_map[sid])])
-        return (phones, spec, wav, sid, tone, language, bert, ja_bert)
+        return (phones, spec, wav, sid, tone, language, emotion, ja_bert)
 
     def get_audio(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
@@ -168,9 +168,6 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
-        # TODO:I only finished the modification here
-        # TODO:modify TextAudioSpeakerCollate, check dataloader.py,
-        #  train_ms.py and other files to ensure if there is anything i need to modify
         return emotion, ja_bert, phone, tone, language
 
     def get_sid(self, sid):
@@ -213,8 +210,10 @@ class TextAudioSpeakerCollate:
         text_padded = torch.LongTensor(len(batch), max_text_len)
         tone_padded = torch.LongTensor(len(batch), max_text_len)
         language_padded = torch.LongTensor(len(batch), max_text_len)
-        bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
-        ja_bert_padded = torch.FloatTensor(len(batch), 768, max_text_len)
+        # bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
+        # set emotion vector length depend on the model.1024 is the default one
+        emotion_padded = torch.FloatTensor(len(batch), 1024)
+        ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
@@ -223,7 +222,8 @@ class TextAudioSpeakerCollate:
         language_padded.zero_()
         spec_padded.zero_()
         wav_padded.zero_()
-        bert_padded.zero_()
+        # bert_padded.zero_()
+        emotion_padded.zero_()
         ja_bert_padded.zero_()
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -248,8 +248,11 @@ class TextAudioSpeakerCollate:
             language = row[5]
             language_padded[i, : language.size(0)] = language
 
-            bert = row[6]
-            bert_padded[i, :, : bert.size(1)] = bert
+            # bert = row[6]
+            # bert_padded[i, :, : bert.size(1)] = bert
+            # emotion use the position where used to be bert
+            emotion = row[6]
+            emotion_padded[i, :] = emotion
 
             ja_bert = row[7]
             ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
@@ -264,7 +267,7 @@ class TextAudioSpeakerCollate:
             sid,
             tone_padded,
             language_padded,
-            bert_padded,
+            emotion_padded,
             ja_bert_padded,
         )
 
