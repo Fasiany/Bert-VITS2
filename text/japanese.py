@@ -4,6 +4,7 @@ import math
 import re
 import unicodedata
 
+import torch
 from transformers import AutoTokenizer
 
 from text import punctuation, symbols
@@ -514,6 +515,8 @@ rep_map = {
     "、": ",",
     "...": "…",
 }
+
+
 def replace_punctuation(text):
     pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
 
@@ -578,7 +581,7 @@ tokenizer = AutoTokenizer.from_pretrained(BERT)
 #     return phones, tones, word2ph
 
 def g2p(norm_text):
-    # i got lots of errors while trying to install mecab so i just throw the old one into trash-bin
+    # i got lots of errors while trying to install mecab so i just threw the old one into trash-bin
     # and wrote a new one using pyopenjtalk
     """transcribe norm text to phonemes and a list that contains how many phonemes each word (or a character)
     contains"""
@@ -602,6 +605,15 @@ def g2p(norm_text):
     return phonemes, tones, word2ph
 
 
+def process_bert(txt, file=None):
+    txt = text_normalize(txt)
+    phonemes, tones, word2ph = g2p(txt)
+    bert_info = get_bert_feature(txt, word2ph)
+    if file is not None:
+        torch.save(bert_info, file)
+    return bert_info
+
+
 if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(BERT)
     text = "hello,こんにちは、世界！……"
@@ -613,6 +625,3 @@ if __name__ == '__main__':
     bert = get_bert_feature(text, word2ph)
 
     print(phones, tones, word2ph, bert.shape)
-
-
-
