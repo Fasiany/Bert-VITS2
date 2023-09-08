@@ -6,11 +6,12 @@ import unicodedata
 
 import torch
 from transformers import AutoTokenizer
-from text.japanese_bert import get_bert_feature
+from text.japanese_bert import get_bert_feature, BERT  # BERT is the path to the model
 
 from text import punctuation, symbols
 
-BERT = '/home/zhang/PycharmProjects/Bert-VITS2_E/bert/bert-large-japanese-v2'
+# Unnecessary definition
+# BERT = '/home/zhang/PycharmProjects/Bert-VITS2_E/bert/bert-large-japanese-v2'
 
 # try:
 #     import MeCab

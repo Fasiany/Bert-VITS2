@@ -59,7 +59,9 @@ def main(
                         " ".join([str(i) for i in word2ph]),
                     )
                 )
-            except Exception as error:
+            # TODO:Due to tons of warnings may be thrown during the whole progress, i decide not to handle errors
+            #  until i update the code to deal with the warnings.Now just make the program crash on errors
+            except FileExistsError as error:
                 print("err!", line, error)
 
         out_file.close()

@@ -56,7 +56,8 @@ class EmotionModel(Wav2Vec2PreTrainedModel):
 
 # load model from hub
 device = 'cuda' if torch.cuda.is_available() else "cpu"
-model_name = 'audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim'
+print(f"Emotion extracting will be done on device {device}")
+model_name = 'emotion_extracting_model'
 processor = Wav2Vec2Processor.from_pretrained(model_name)
 model = EmotionModel.from_pretrained(model_name).to(device)
 
