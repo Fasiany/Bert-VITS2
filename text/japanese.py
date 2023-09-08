@@ -6,6 +6,7 @@ import unicodedata
 
 import torch
 from transformers import AutoTokenizer
+from text.japanese_bert import get_bert_feature
 
 from text import punctuation, symbols
 
@@ -617,7 +618,6 @@ def process_bert(txt, file=None):
 if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(BERT)
     text = "hello,こんにちは、世界！……"
-    from text.japanese_bert import get_bert_feature
 
     text = text_normalize(text)
     print(text)
