@@ -7,7 +7,7 @@
 
 目前主要更改为把默认bert模型改为bert-large-japanese-v2，并薄纱了mecab-python3
 
-当前阶段目标:~~焊接实验emotional-vits-VFFTA~~焊接基本完成，等待测试
+当前阶段目标:~~情感Embedding(emotional-vits-VFFTA, forked from emotional-vits)焊接实验~~焊接基本完成，等待测试
 
 ---
 
