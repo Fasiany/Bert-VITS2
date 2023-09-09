@@ -1,8 +1,4 @@
 import sys, os
-
-if sys.platform == "darwin":
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
 import logging
 
 logging.getLogger("numba").setLevel(logging.WARNING)
@@ -28,6 +24,12 @@ import gradio as gr
 import webbrowser
 
 net_g = None
+
+if sys.platform == "darwin" and torch.backends.mps.is_available():
+    device = "mps"
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+else:
+    device = "cuda"
 
 # TODO:update webui since emotion support haven't been added for inference code
 
@@ -171,7 +173,7 @@ if __name__ == "__main__":
 
     speaker_ids = hps.data.spk2id
     speakers = list(speaker_ids.keys())
-    languages = ["ZH", "JA"]
+    languages = ["ZH", "JP"]
     with gr.Blocks() as app:
         with gr.Row():
             with gr.Column():
@@ -205,7 +207,15 @@ if __name__ == "__main__":
 
         btn.click(
             tts_fn,
-            inputs=[text, speaker, sdp_ratio, noise_scale, noise_scale_w, length_scale],
+            inputs=[
+                text,
+                speaker,
+                sdp_ratio,
+                noise_scale,
+                noise_scale_w,
+                length_scale,
+                language,
+            ],
             outputs=[text_output, audio_output],
         )
 
