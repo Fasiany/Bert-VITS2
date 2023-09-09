@@ -117,7 +117,7 @@ def extract_wav(path):
 def preprocess_one(path):
     wav, sr = librosa.load(path, sr=16000)
     emb = process_func(np.expand_dims(wav, 0), sr, embeddings=True)
-    np.save(f"{path}.emo.npy", emb.squeeze(0))
+    np.save(f"{path.replace('.wav', '')}.emo.npy", emb.squeeze(0))
     return emb
 
 

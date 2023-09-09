@@ -10,23 +10,23 @@ tokenizer = AutoTokenizer.from_pretrained(BERT)
 # default value is 3(untested)
 BERT_LAYER = 3
 if torch.cuda.is_available():
-    device = "cuda"
+    device_g = "cuda"
 elif (
         sys.platform == "darwin"
         and torch.backends.mps.is_available()
 ):
-    device = "mps"
+    device_g = "mps"
 else:
-    device = "cpu"
-print(f"Loading bert on device {device}")
-model = AutoModelForMaskedLM.from_pretrained(BERT).to(device)
+    device_g = "cpu"
+print(f'loading bert on device {device_g}')
+model = AutoModelForMaskedLM.from_pretrained(BERT).to(device_g)
 
 
-def get_bert_feature(text, word2ph):
+def get_bert_feature(text, word2ph, device=None):  # arg device is actually not used.Keep it here for compatibility
     with torch.no_grad():
         inputs = tokenizer(text, return_tensors="pt")
         for i in inputs:
-            inputs[i] = inputs[i].to(device)
+            inputs[i] = inputs[i].to(device_g)
         res = model(**inputs, output_hidden_states=True)
         # we will get 25 layers in bert large
         # print(f"res shape:{res['hidden_states'].shape}")

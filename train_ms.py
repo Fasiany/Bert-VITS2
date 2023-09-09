@@ -15,6 +15,9 @@ from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 import logging
 
+os.environ['MASTER_PORT'] = '5678'
+os.environ['MASTER_ADDR'] = 'localhost'
+
 logging.getLogger("numba").setLevel(logging.WARNING)
 import commons
 import utils
@@ -76,13 +79,12 @@ def run():
     collate_fn = TextAudioSpeakerCollate()
     train_loader = DataLoader(
         train_dataset,
-        num_workers=16,
+        num_workers=0,
         shuffle=False,
         pin_memory=True,
         collate_fn=collate_fn,
         batch_sampler=train_sampler,
-        persistent_workers=True,
-        prefetch_factor=4,
+        prefetch_factor=None,
     )  # DataLoader config could be adjusted.
     if rank == 0:
         eval_dataset = TextAudioSpeakerLoader(hps.data.validation_files, hps.data)
@@ -170,14 +172,18 @@ def run():
     net_d = DDP(net_d, device_ids=[rank], find_unused_parameters=True)
     if net_dur_disc is not None:
         net_dur_disc = DDP(net_dur_disc, device_ids=[rank], find_unused_parameters=True)
+    dur_resume_lr = hps.train.learning_rate
     try:
         if net_dur_disc is not None:
-            _, _, dur_resume_lr, epoch_str = utils.load_checkpoint(
-                utils.latest_checkpoint_path(hps.model_dir, "DUR_*.pth"),
-                net_dur_disc,
-                optim_dur_disc,
-                skip_optimizer=True,
-            )
+            try:
+                _, _, dur_resume_lr, epoch_str = utils.load_checkpoint(
+                    utils.latest_checkpoint_path(hps.model_dir, "DUR_*.pth"),
+                    net_dur_disc,
+                    optim_dur_disc,
+                    skip_optimizer=True,
+                )
+            except Exception as err:
+                print(f"Failed to load any ckpt file of duration discriminator!--{repr(err)}")
             _, optim_g, g_resume_lr, epoch_str = utils.load_checkpoint(
                 utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"),
                 net_g,
@@ -198,7 +204,7 @@ def run():
         epoch_str = max(epoch_str, 1)
         global_step = (epoch_str - 1) * len(train_loader)
     except Exception as e:
-        print(e)
+        print("Failed to load ckpt files of generator or discriminator, ", repr(e))
         epoch_str = 1
         global_step = 0
 
@@ -219,6 +225,7 @@ def run():
     scaler = GradScaler(enabled=hps.train.fp16_run)
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
+        print("run epoch", epoch)
         if rank == 0:
             train_and_evaluate(
                 rank,

@@ -1,8 +1,11 @@
 # Convert Japanese text to phonemes which is
 # compatible with Julius https://github.com/julius-speech/segmentation-kit
 import math
+import os
 import re
+import sys
 import unicodedata
+from typing import TextIO
 
 import torch
 from transformers import AutoTokenizer
@@ -460,10 +463,11 @@ _NUMBER_RX = re.compile(r"[0-9]+(\.[0-9]+)?")
 
 
 def japanese_convert_numbers_to_words(text: str) -> str:
-    # some of them become useless since g2p method have been using pyopenjtalk
     res = text
     # res = _NUMBER_WITH_SEPARATOR_RX.sub(lambda m: m[0].replace(",", ""), text)
-    res = _CURRENCY_RX.sub(lambda m: m[2] + _CURRENCY_MAP.get(m[1], m[1]), res)
+    # res = _CURRENCY_RX.sub(lambda m: m[2] + _CURRENCY_MAP.get(m[1], m[1]), res)
+    for x in _CURRENCY_MAP.keys():
+        res = res.replace(x, _CURRENCY_MAP[x])
     # res = _NUMBER_RX.sub(lambda m: num2words(m[0], lang="ja"), res)
     return res
 
@@ -520,17 +524,20 @@ rep_map = {
 
 
 def replace_punctuation(text):
-    pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
+    # pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
+    replaced_text = text
+    # replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
 
-    replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
+    for x in rep_map.keys():
+        replaced_text = replaced_text.replace(x, rep_map[x])
 
-    replaced_text = re.sub(
-        r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF"
-        + "".join(punctuation)
-        + r"]+",
-        "",
-        replaced_text,
-    )
+    # replaced_text = re.sub(
+    #     r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF"
+    #     + "".join(punctuation)
+    #     + r"]+",
+    #     "",
+    #     replaced_text,
+    # )
 
     return replaced_text
 
@@ -583,23 +590,30 @@ tokenizer = AutoTokenizer.from_pretrained(BERT)
 #     return phones, tones, word2ph
 
 def g2p(norm_text):
+    # sys.stdout = open(os.devnull, 'w')
     # i got lots of errors while trying to install mecab so i just threw the old one into trash-bin
     # and wrote a new one using pyopenjtalk
     """transcribe norm text to phonemes and a list that contains how many phonemes each word (or a character)
-    contains"""
+    contains.Notice that maybe the case of the first character of a english word matters"""
     # use tokenized sequence because word2ph will be used by get_bert_feature
     tokenized = tokenizer.tokenize(norm_text)
     st = [x.replace("#", "") for x in tokenized]
     word2ph = []
-    phs = []
-    for sub in st:
+    phs = pyopenjtalk.g2p(norm_text).split(" ")  # Directly use the entire norm_text sequence.
+    for sub in st:  # the following code is only for calculating word2ph
         wph = 0
         for x in sub:
-            phonemes = pyopenjtalk.g2p(x)
+            # print(x, end=" ")
+            sys.stdout.flush()
+            if x not in ['?', '.', '!', '…', ',']:  # This will throw warnings.
+                phonemes = pyopenjtalk.g2p(x)
+            else:
+                phonemes = 'pau'
             # for x in range(repeat):
+            # print(f"G2P:{sub} has {len(phonemes.split(' '))} phonemes.")
             wph += len(phonemes.split(' '))
             # print(f'{x}-->:{phones}')
-            phs += phonemes.split(" ")
+            # phs += phonemes.split(" ")
         word2ph.append(wph)
     phonemes = ['_'] + phs + ['_']
     tones = [0 for i in phonemes]
@@ -617,8 +631,9 @@ def process_bert(txt, file=None):
 
 
 if __name__ == '__main__':
+    print(kata2phoneme('です?'))
     tokenizer = AutoTokenizer.from_pretrained(BERT)
-    text = "hello,こんにちは、世界！……"
+    text = "Hello,こんにちは、世界！……"
 
     text = text_normalize(text)
     print(text)

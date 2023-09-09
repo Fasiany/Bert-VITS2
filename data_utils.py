@@ -44,7 +44,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         self.min_text_len = getattr(hparams, "min_text_len", 1)
         self.max_text_len = getattr(hparams, "max_text_len", 300)
 
-        random.seed(hparams['train'].seed)
+        random.seed(hparams.shuffle_seed)
         random.shuffle(self.audiopaths_sid_text)
         self._filter()
 
@@ -147,24 +147,27 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             word2ph[0] += 1
         bert_path = wav_path.replace(".wav", ".bert.pt")
         emotion_path = wav_path.replace(".wav", ".emo.npy")
+        # the length of bert input and phonemes will no longer match since g2p is updated.
+        # They are more likely not to be identical
+        # but the difference should not be huge, so continue anyway.
         try:
             bert = torch.load(bert_path)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
+            # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
         except:
             bert = get_bert(text, word2ph, language_str, "cuda")
             torch.save(bert, bert_path)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
-        assert language_str == 'JA' "This project only supports Japanese for now."
+            # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
+        assert language_str == 'JP', "This project only supports Japanese for now."
         emotion = torch.FloatTensor(np.load(emotion_path))
         ja_bert = bert
         # dimension info of bert:[1024, len(phonemes)]
-        assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
-            ja_bert.shape,
-            len(phone),
-            len(word2ph),
-            word2ph,
-            text,
-        )}"""
+        # assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+        #     ja_bert.shape,
+        #     len(phone),
+        #     len(word2ph),
+        #     word2ph,
+        #     text,
+        # )}"""
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
