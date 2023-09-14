@@ -1,6 +1,8 @@
-# **Testing**
+正在备考csp，暂时搁置项目
 
-等待训练完成以测试最终效果并调整代码
+# **Test pending**
+
+等待Fasiany考完csp
 
 ~~由于我试图安装mecab时遇到了一大堆报错所以~~删掉了原版g2p，并摆脱对mecab-python3的依赖，改成用pyopenjtalk实现
 
