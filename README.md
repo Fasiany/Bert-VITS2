@@ -1,8 +1,5 @@
-为了规避无用功的风险，某些代码需要重构
+正在实验并重构word2ph，bert_feature与g2p处理逻辑
 
-正在研究并实验新的g2p与word2ph处理逻辑以确保bert提取逻辑中音素分配正确
-
-# **Test pending**
 
 ---
 
