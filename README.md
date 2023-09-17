@@ -1,14 +1,6 @@
-正在备考csp，暂时搁置项目
+正在研究并实验新的g2p与word2ph处理逻辑
 
 # **Test pending**
-
-等待Fasiany考完csp
-
-~~由于我试图安装mecab时遇到了一大堆报错所以~~删掉了原版g2p，并摆脱对mecab-python3的依赖，改成用pyopenjtalk实现
-
-目前主要更改为把默认bert模型改为bert-large-japanese-v2，并薄纱了mecab-python3
-
-当前阶段目标:~~情感Embedding(emotional-vits-VFFTA, forked from emotional-vits)焊接实验~~焊接基本完成，等待测试
 
 ---
 
