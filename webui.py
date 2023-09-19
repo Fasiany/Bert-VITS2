@@ -1,3 +1,5 @@
+# flake8: noqa: E402
+
 import sys, os
 import logging
 import IPython.display as ipd
@@ -146,7 +148,9 @@ if __name__ == "__main__":
         default="./configs/config.json",
         help="path of your config file",
     )
-    parser.add_argument("--share", default=False, help="make link public")
+    parser.add_argument(
+        "--share", default=False, help="make link public", action="store_true"
+    )
     parser.add_argument(
         "-d", "--debug", action="store_true", help="enable DEBUG-LEVEL log"
     )
@@ -172,7 +176,7 @@ if __name__ == "__main__":
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
         n_speakers=hps.data.n_speakers,
-        **hps.model
+        **hps.model,
     ).to(device)
     _ = net_g.eval()
 
