@@ -6,9 +6,7 @@ import sys
 BERT = '/home/zhang/PycharmProjects/Bert-VITS2_E/bert/bert-large-japanese-v2'
 
 tokenizer = AutoTokenizer.from_pretrained(BERT)
-# bert-large model has 25 hidden layers.You can decide which layer to use by setting this variable to a specific value
-# default value is 3(untested)
-BERT_LAYER = 3
+BERT_LAYER = 20
 if torch.cuda.is_available():
     device_g = "cuda"
 elif (

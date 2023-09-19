@@ -260,6 +260,7 @@ class TextAudioSpeakerCollate:
 
             ja_bert = row[7]
             ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
+            print("ja_bert_padded:", ja_bert.shape, ja_bert_padded.shape)
 
         return (
             text_padded,

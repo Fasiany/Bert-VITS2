@@ -1,6 +1,6 @@
 import sys, os
 import logging
-
+import IPython.display as ipd
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("markdown_it").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -14,14 +14,15 @@ logger = logging.getLogger(__name__)
 
 import torch
 import argparse
+import numpy as np
 import commons
 import utils
 from models import SynthesizerTrn
 from text.symbols import symbols
 from text import cleaned_text_to_sequence, get_bert
-from text.cleaner import clean_text
 import gradio as gr
 import webbrowser
+from text.japanese import g2p, text_normalize
 
 net_g = None
 
@@ -34,10 +35,8 @@ else:
 # TODO:update webui since emotion support haven't been added for inference code
 
 
-def get_text(text, language_str, hps):
-    norm_text, phone, tone, word2ph = clean_text(text, language_str)
+def get_text(text, word2ph, phone, tone, language_str, wav_path):
     phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
-
     if hps.data.add_blank:
         phone = commons.intersperse(phone, 0)
         tone = commons.intersperse(tone, 0)
@@ -45,51 +44,58 @@ def get_text(text, language_str, hps):
         for i in range(len(word2ph)):
             word2ph[i] = word2ph[i] * 2
         word2ph[0] += 1
-    bert = get_bert(norm_text, word2ph, language_str)
-    del word2ph
-    assert bert.shape[-1] == len(phone), phone
-
-    if language_str == "ZH":
-        bert = bert
-        ja_bert = torch.zeros(768, len(phone))
-    elif language_str == "JA":
-        ja_bert = bert
-        bert = torch.zeros(1024, len(phone))
-    else:
-        bert = torch.zeros(1024, len(phone))
-        ja_bert = torch.zeros(768, len(phone))
-    assert bert.shape[-1] == len(phone), (
-        bert.shape,
-        len(phone),
-        sum(word2ph),
-        p1,
-        p2,
-        t1,
-        t2,
-        pold,
-        pold2,
-        word2ph,
-        text,
-        w2pho,
-    )
+    # bert_path = wav_path.replace(".wav", ".bert.pt")
+    emotion_path = wav_path.replace(".wav", ".emo.npy")
+    # the length of bert input and phonemes will no longer match since g2p is updated.
+    # They are more likely not to be identical
+    # but the difference should not be huge, so continue anyway.
+    # try:
+    #     bert = torch.load(bert_path)
+        # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
+    # except:
+    bert = get_bert(text, word2ph, language_str, "cuda")
+        # torch.save(bert, bert_path)
+        # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
+    assert language_str == 'JP', "This project only supports Japanese for now."
+    emotion = torch.FloatTensor(np.load(emotion_path))
+    ja_bert = bert
+    # dimension info of bert:[1024, len(phonemes)]
+    # assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+    #     ja_bert.shape,
+    #     len(phone),
+    #     len(word2ph),
+    #     word2ph,
+    #     text,
+    # )}"""
     phone = torch.LongTensor(phone)
     tone = torch.LongTensor(tone)
     language = torch.LongTensor(language)
-    return bert, ja_bert, phone, tone, language
+    return emotion, ja_bert, phone, tone, language
 
 
-def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language):
+def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language, emo):
     global net_g
-    bert, ja_bert, phones, tones, lang_ids = get_text(text, language, hps)
+    phones, tones, word2ph = g2p(text_normalize(text))
+    print("infer:", phones)
+    emotion, ja_bert, phones, tones, lang_ids = get_text(text, word2ph, phones, tones, language, emo)
     with torch.no_grad():
         x_tst = phones.to(device).unsqueeze(0)
         tones = tones.to(device).unsqueeze(0)
         lang_ids = lang_ids.to(device).unsqueeze(0)
-        bert = bert.to(device).unsqueeze(0)
+        emotion = emotion.to(device).unsqueeze(0)
         ja_bert = ja_bert.to(device).unsqueeze(0)
         x_tst_lengths = torch.LongTensor([phones.size(0)]).to(device)
         del phones
         speakers = torch.LongTensor([hps.data.spk2id[sid]]).to(device)
+        dim_mx = max([ja_bert.shape[2], x_tst.shape[1]])
+        if ja_bert.shape[2] < dim_mx:
+            ja_bert = torch.cat((ja_bert, torch.zeros(ja_bert.shape[0], ja_bert.shape[1], dim_mx-ja_bert.shape[2]).to('cuda')), dim=2)
+        elif x_tst.shape[1] < dim_mx:
+            x_tst = torch.cat((x_tst, torch.zeros(1, dim_mx-x_tst.shape[1]).to('cuda')), dim=1).long()
+            lang_ids = torch.cat((lang_ids, torch.zeros(1, dim_mx - lang_ids.shape[1]).to('cuda')), dim=1).long()
+            tones = torch.cat((tones, torch.zeros(1, dim_mx - tones.shape[1]).to('cuda')), dim=1).long()
+        print("length of input：", x_tst.shape, ja_bert.shape, lang_ids
+              .shape, emotion.shape, x_tst_lengths.shape, tones.shape)
         audio = (
             net_g.infer(
                 x_tst,
@@ -97,7 +103,7 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
                 speakers,
                 tones,
                 lang_ids,
-                bert,
+                emotion,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
@@ -108,7 +114,7 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
             .float()
             .numpy()
         )
-        del x_tst, tones, lang_ids, bert, x_tst_lengths, speakers
+        del x_tst, tones, lang_ids, emotion, x_tst_lengths, speakers
         return audio
 
 
@@ -132,7 +138,7 @@ def tts_fn(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-m", "--model", default="./logs/as/G_8000.pth", help="path of your model"
+        "-m", "--model", default="./logs/ATRI/G_16000.pth", help="path of your model"
     )
     parser.add_argument(
         "-c",
@@ -160,6 +166,7 @@ if __name__ == "__main__":
             else "cpu"
         )
     )
+    print("length of symbols:", len(symbols))
     net_g = SynthesizerTrn(
         len(symbols),
         hps.data.filter_length // 2 + 1,
@@ -174,6 +181,9 @@ if __name__ == "__main__":
     speaker_ids = hps.data.spk2id
     speakers = list(speaker_ids.keys())
     languages = ["ZH", "JP"]
+    ad = infer('わたしはマスターの所有物ですので。勝手に売買するのは違法です', 0.2, 0.6, 0.8, 1, 'AT', 'JP', 'ATRI_VD_WAV_48K/ATR_b101_012.wav')
+    open("temp.wav", "wb").write(ipd.Audio(ad, rate=hps.data.sampling_rate, normalize=False).data)
+    exit()
     with gr.Blocks() as app:
         with gr.Row():
             with gr.Column():

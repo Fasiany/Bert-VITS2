@@ -1,11 +1,12 @@
 # Convert Japanese text to phonemes which is
 # compatible with Julius https://github.com/julius-speech/segmentation-kit
+import bisect
 import math
 import os
 import re
 import sys
 import unicodedata
-from typing import TextIO
+from typing import TextIO, List
 
 import torch
 from transformers import AutoTokenizer
@@ -589,32 +590,57 @@ tokenizer = AutoTokenizer.from_pretrained(BERT)
 #     word2ph = [1] + word2ph + [1]
 #     return phones, tones, word2ph
 
+
+def LIS_solver(seq: List[int]) -> int:
+    n = len(seq)
+    seq = [0] + seq
+    dp = [0] * n
+    i = 0
+    for x in range(1, n + 1):
+        if seq[x] > dp[i]:
+            i += 1
+            dp[i] = seq[x]
+        else:
+            ind = bisect.bisect(dp, x) - 1
+            dp[ind] = min(dp[ind], seq[x])
+    return i
+
+
+def LCS_solver(seq_a: List[int], seq_b: List[int]) -> int:
+    # O(nlogn)
+    rg = set(seq_a)
+    n = len(seq_a)
+    seq_a = seq_a
+    usages = {}
+    cor = {}
+    for i, x in enumerate(rg):
+        usages[x] = 0
+        cor[x] = i+1
+    pos = len(seq_a) * [[]]
+    for x in range(n):
+        pos[cor[seq_a[x]]].append(x)
+    tm = []
+    for x in range(len(seq_b)):
+        try:
+            t_pos = pos[cor[seq_b[x]]][usages[seq_b[x]]]
+            usages[seq_b[x]] += 1
+        except KeyError:
+            tm.append(-1)
+        else:
+            tm.append(t_pos)
+    return LIS_solver(tm)
+
+
+def character_phonemes_corresponding_relationship_solver(norm_text):
+    """This function builds the corresponding table between each characters sentence and phonemes
+    Notice that the table might not be absolutely right
+    """
+
+    pass
+
+
 def g2p(norm_text):
-    # sys.stdout = open(os.devnull, 'w')
-    # i got lots of errors while trying to install mecab so i just threw the old one into trash-bin
-    # and wrote a new one using pyopenjtalk
-    """transcribe norm text to phonemes and a list that contains how many phonemes each word (or a character)
-    contains.Notice that maybe the case of the first character of a english word matters"""
-    # use tokenized sequence because word2ph will be used by get_bert_feature
-    tokenized = tokenizer.tokenize(norm_text)
-    st = [x.replace("#", "") for x in tokenized]
-    word2ph = []
-    phs = pyopenjtalk.g2p(norm_text).split(" ")  # Directly use the entire norm_text sequence.
-    for sub in st:  # the following code is only for calculating word2ph
-        wph = 0
-        for x in sub:
-            # print(x, end=" ")
-            sys.stdout.flush()
-            if x not in ['?', '.', '!', '…', ',']:  # This will throw warnings.
-                phonemes = pyopenjtalk.g2p(x)
-            else:
-                phonemes = 'pau'
-            # for x in range(repeat):
-            # print(f"G2P:{sub} has {len(phonemes.split(' '))} phonemes.")
-            wph += len(phonemes.split(' '))
-            # print(f'{x}-->:{phones}')
-            # phs += phonemes.split(" ")
-        word2ph.append(wph)
+    # TODO:this function is to be updated
     phonemes = ['_'] + phs + ['_']
     tones = [0 for i in phonemes]
     word2ph = [1] + word2ph + [1]
