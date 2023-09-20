@@ -1,6 +1,8 @@
 import bisect
-from typing import List
+import os
+from typing import List, Any
 import pyopenjtalk as pjt
+from text.symbols import punctuation
 
 
 def LIS_solver(seq: List[int]) -> int:
@@ -45,7 +47,7 @@ def Permutation_LCS_solver(seq_a: List[int], seq_b: List[int]) -> int:
     return LIS_solver(tm)
 
 
-def LCS_solver(seq_a: List[int], seq_b: List[int]) -> (dict, int):
+def LCS_solver(seq_a: List[Any], seq_b: List[Any]) -> (dict, int):
     n = len(seq_a)
     m = len(seq_b)
     seq_a = [0] + seq_a
@@ -80,16 +82,28 @@ def LCS_solver(seq_a: List[int], seq_b: List[int]) -> (dict, int):
 def distribute_phonemes(cn, n):
     return [cn // n] * cn, cn - (n * (cn // n))
 
+def g2p_with_accent_info():
+    pass
 
-def calculate_word2ph_by_matching_char_and_phone(norm_text, tokenized) -> list:
+
+def calculate_word2ph(norm_text, tokenized) -> list:
     sc = pjt.g2p(norm_text).split(' ')
     ss = ['']
+    cm = {}
+    punc_num = 0
     for tm in norm_text:
-        if tm in ["!", "?", "…", ",", ".", "'", "-"]:
+        if tm in punctuation:
+            punc_num += 1
             if ss[-1] != 'pau':
                 ss.append('pau')
+                # consider punctuation to have 1 phoneme, so no further processing required
         else:
-            ss.append(tm)
+            si = len(ss)
+            subs = pjt.g2p(tm).split(' ')
+            ss += subs
+            cm[tm] = (si, si+len(subs)-1)
+    res = LCS_solver(sc, ss)
+    total = len(sc) + punc_num
     ss.pop(0)
     word2ph = []
     # TODO:Complete the rest part (match known relationships of the sequence and distribute unknown phonemes)
@@ -105,8 +119,20 @@ if __name__ == '__main__':
     # demo for matching, designed to be visual
     # sb = [1, 11, 12, 13, 2, 7, 8, 9, 5, 3, 2, 9, 1, 4, 0]
     # sa = [1, 3, 3, 2, 4, 5, 8, 2, 5, 3, 7, 8, 5, 1, 3, 2, 1, 3, 4]
-    sa = list("fUtokorokashiidarekaniyobibaretamitainasoNnakaifunoonakiwakedesu 114514".lower())
-    sb = list('natsUkashiidarekaniyobaretamitainapausoNnakaisekIfunoonakibuNdesU 1919810'.lower())
+    sentence = 'わたしは眠りにつく前、マスターから命令を受けました。それを果たしてからにしてほしいんです'
+    from japanese import text_normalize
+    sa = pjt.g2p(sentence).split(' ')
+    sb = []
+    sa = [''] + sa
+    for tm in text_normalize(sentence):
+        if tm in ["!", "?", "…", ",", ".", "'", "-"]:
+            if sb[-1] != 'pau':
+                sb.append('pau')
+        else:
+            sb += pjt.g2p(tm).split(' ')
+    sb = [''] + sb
+    # sa = list("fUtokorokashiidarekaniyobibaretamitainasoNnakaifunoonakiwakedesu 114514".lower())
+    # sb = list('natsUkashiidarekaniyobaretamitainapausoNnakaisekIfunoonakibuNdesU 1919810'.lower())
     if len(sa) < len(sb):
         sa, sb = swap(sa, sb)
     lge = 0
@@ -149,9 +175,11 @@ if __name__ == '__main__':
     for x in pf:
         tlp += len(x)
     if len(pf) < 2:
-        pf.append('')
+        pf += (2-len(pf)) * ['']
     sat[:SP * opr[0][1] - len(sb[opr[0][0] - 1])] = list(
-        f"[{(' ' * ((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1))).join(pf)}{' ' * (SP * opr[0][1] - 2 - tlp - len(sb[opr[0][0] - 1]) - (((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1)) * (len(pf) - 1)))}]")
+        f"[{(' ' * ((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1))).join(pf)}"
+        f"{' ' * (SP * opr[0][1] - 2 - tlp - len(sb[opr[0][0] - 1]) - (((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1)) * (len(pf) - 1)))}]"
+    )
     sat = "".join(sat)
     # sbt = "".join(sbt)
     tbr = []
@@ -165,10 +193,6 @@ if __name__ == '__main__':
     sat = list(sat)
     sbt = list(sbt)
     mi = 0
-    for x in tbr:
-        sat[x[0] - mi:x[1] - mi] = []
-        sbt[x[0] - mi:x[1] - mi] = []
-        mi += x[2]
     x = 0
     while x < len(sat) - 1:
         if sat[x] == sbt[x] == ' ' and (sbt[x - 1] == sbt[x + 1] == ' ') and (sat[x - 1] == sat[x + 1] == ' '):
@@ -176,6 +200,7 @@ if __name__ == '__main__':
             sbt.pop(x)
         else:
             x += 1
-    print(f"successfully matched {ans} group{'s' if ans > 1 else ''}")
+    print(f"successfully matched {ans} group{'s' if ans > 1 else ''}, similarity:{round(ans/len(sa)*100, 2)}%, "
+          f"{round(ans/len(sb)*100, 2)}%")
     print("".join(sat))
     print("".join(sbt))
