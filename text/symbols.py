@@ -73,51 +73,7 @@ zh_symbols = [
 num_zh_tones = 6
 
 # japanese
-ja_symbols = [
-    "pau",
-    "N",
-    "a",
-    "a:",
-    "b",
-    "by",
-    "ch",
-    "d",
-    "dy",
-    "e",
-    "e:",
-    "f",
-    "g",
-    "gy",
-    "h",
-    "hy",
-    "i",
-    "i:",
-    "j",
-    "k",
-    "ky",
-    "m",
-    "my",
-    "n",
-    "ny",
-    "o",
-    "o:",
-    "p",
-    "py",
-    "q",
-    "r",
-    "ry",
-    "s",
-    "sh",
-    "t",
-    "ts",
-    "ty",
-    "u",
-    "u:",
-    "w",
-    "y",
-    "z",
-    "zy",
-]
+ja_symbols = list('AEINOQUabdefghijklmnoprstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#')
 for x in range(ord('a'), ord('z')+1):
     ja_symbols.append(chr(x).upper())
 num_ja_tones = 1

@@ -1,5 +1,6 @@
 import bisect
 import os
+import re
 from typing import List, Any
 import pyopenjtalk as pjt
 from text.symbols import punctuation
@@ -79,35 +80,257 @@ def LCS_solver(seq_a: List[Any], seq_b: List[Any]) -> (dict, int):
     return res, dp[n][m]
 
 
-def distribute_phonemes(cn, n):
-    return [cn // n] * cn, cn - (n * (cn // n))
+def distribute_phonemes(pn, cn):
+    resu = [pn // cn] * cn
+    rem = pn - cn * (pn // cn)
+    for x in range(rem):
+        resu[cn - x - 1] += 1
+    return resu
 
-def g2p_with_accent_info():
-    pass
+
+def numeric_feature_by_regex(regex, s):
+    # https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html#10.2-Tacotron-2-%E3%82%92%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E9%81%A9%E7%94%A8%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E5%A4%89%E6%9B%B4
+    match = re.search(regex, s)
+    if match is None:
+        return -50
+    return int(match.group(1))
 
 
-def calculate_word2ph(norm_text, tokenized) -> list:
-    sc = pjt.g2p(norm_text).split(' ')
-    ss = ['']
+def g2p_with_accent_info(norm_text):
+    # https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html#10.2-Tacotron-2-%E3%82%92%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E9%81%A9%E7%94%A8%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E5%A4%89%E6%9B%B4
+    # 以重音短语分组作为分割 ' '
+    # a1为重音音节距离(降) ']'
+    # 重音短语起始第二个音节组为升 '/'
+    # e3:前一个音节组词性(1=疑问) '?'
+    fl = pjt.extract_fullcontext(norm_text)
+    n = len(fl)
+    result = []
+    for current in range(n):
+        lab_curr = fl[current]
+        p3 = re.search(r"-(.*?)\+", lab_curr).group(1)
+        if p3 == 'sil':
+            if current == n - 1:
+                e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
+                if e3:
+                    result.append('?')
+                else:
+                    result.append('*')
+            continue
+        elif p3 == 'pau':
+            e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
+            if e3:
+                result.append('?')
+            else:
+                result.append(',')
+        else:
+            result.append(p3)
+        a1 = numeric_feature_by_regex(r"/A:([0-9\-]+)\+", lab_curr)
+        a2 = numeric_feature_by_regex(r"\+(\d+)\+", lab_curr)
+        a3 = numeric_feature_by_regex(r"\+(\d+)/", lab_curr)
+        f1 = numeric_feature_by_regex(r"/F:(\d+)_", lab_curr)
+
+        a2_next = numeric_feature_by_regex(r"\+(\d+)\+", fl[current + 1])
+
+        if a3 == 1 and a2_next == 1:
+            result.append("#")
+        elif a1 == 0 and a2_next == a2 + 1 and a2 != f1:
+            result.append("]")
+        elif a2 == 1 and a2_next == 2:
+            result.append("/")
+    return result
+
+
+def get_item(key, dic, default):
+    try:
+        return dic[key]
+    except KeyError:
+        return default
+
+
+def calculate_word2ph(norm_text: str) -> list:
+    sc = [x.lower() for x in pjt.g2p(norm_text).split(' ')]
+    ss = []
     cm = {}
+    rcm = {}
     punc_num = 0
-    for tm in norm_text:
+    for cnt, tm in enumerate(norm_text):
         if tm in punctuation:
             punc_num += 1
-            if ss[-1] != 'pau':
-                ss.append('pau')
+            cm[cnt] = (len(ss)+1, len(ss)+1)
+            ss.append('pau')
+
                 # consider punctuation to have 1 phoneme, so no further processing required
         else:
             si = len(ss)
-            subs = pjt.g2p(tm).split(' ')
+            subs = [tc.lower() for tc in pjt.g2p(tm).split(' ')]
             ss += subs
-            cm[tm] = (si, si+len(subs)-1)
-    res = LCS_solver(sc, ss)
-    total = len(sc) + punc_num
-    ss.pop(0)
+            cm[cnt] = (si+1, si + len(subs))
+            for ind in range(si, si + len(subs)):
+                rcm[ind] = cnt+1
+    res, _ = LCS_solver(ss, sc)
+    tres = {}
+    for x in res.keys():
+        tres[x[0]] = x[1]
+    res = tres
+    total = len(sc)
     word2ph = []
     # TODO:Complete the rest part (match known relationships of the sequence and distribute unknown phonemes)
+    offset = 0
+    match_failures = ()  # (start_char_id, stop_char_id)
+    last_success = ()
+    is_last_perfect_match = True
+    last_ep = 0
+    for x in range(len(norm_text)):
+        start = cm[x][0]
+        end = cm[x][1]  # phoneme range in per-processed sequence
+        start_p = True
+        stop_p = True
+        while not get_item(start, res, False) and start <= end:
+            start += 1
+            start_p = False
+        while not get_item(end, res, False) and start <= end:
+            end -= 1
+            stop_p = False
+        if start > end:
+            # All phonemes of the token cannot be matched.
+            # This char will get the phoneme num depends on next successful match
+            if match_failures:
+                match_failures = (match_failures[0], match_failures[1] + 1)
+            else:
+                match_failures = (x, x)
+            continue
+        extra = 0
+        if start_p and stop_p:
+            # perfect match
+            total -= res[end] - res[start] + 1
+            if match_failures:
+                # previous matches failed.Need to distribute available phonemes to them.
+                available = res[start] - last_ep
+                if not is_last_perfect_match:
+                    # if the last successful match is not perfect, give it up to 1
+                    if available > match_failures[1] - match_failures[0] + 1:
+                        word2ph[-1] += 1
+                        available -= 1
+                        total -= 1
+                word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                total -= available
+                match_failures = ()
+                # check if there are any not used phonemes before res[start] and if the last match is perfect
+            elif res[start] - last_ep > 0:
+                if not is_last_perfect_match:
+                    # if not, apply these phonemes to the last match
+                    word2ph[-1] += res[start] - last_ep
+                else:
+                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    extra += plus[1]
+                    if len(word2ph) > 0:
+                        word2ph[-1] += plus[0]
+                    else:
+                        extra += plus[0]
+                total -= res[start] - last_ep
+            word2ph.append(res[end] - res[start] + 1 + extra)
+            last_ep = res[end] + 1
+            is_last_perfect_match = True
+        elif not start_p and stop_p:
+            available = res[start] - last_ep
+            extra = 0
+            if available:
+                if match_failures:
+                    if is_last_perfect_match:
+                        if available > match_failures[1] - match_failures[0] + 1:
+                            available -= 1
+                            extra = 1
+                            total -= 1
+                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        total -= available
+                    else:
+                        if available > match_failures[1] - match_failures[0] + 2:
+                            available -= 2
+                            extra = 1
+                            word2ph[-1] += 1
+                            total -= 2
+                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        total -= available
+                    match_failures = ()
+                elif is_last_perfect_match:
+                    # apply these to the current char
+                    extra = available
+                else:
+                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    extra += plus[1]
+                    if len(word2ph) > 0:
+                        word2ph[-1] += plus[0]
+                    else:
+                        extra += plus[0]
+                    total -= res[start] - last_ep
+            word2ph.append(res[start] - res[end] + 1 + extra)
+            total -= res[end] - res[start] + 1
+            is_last_perfect_match = True
+            last_ep = res[end] + 1
+        elif start_p and not stop_p:
+            if match_failures:
+                available = res[start] - last_ep
+                if not is_last_perfect_match:
+                    if available > match_failures[1] - match_failures[0] + 1:
+                        word2ph[-1] += 1
+                        available -= 1
+                        total -= 1
+                word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                total -= available
+                match_failures = ()
+            elif res[start] - last_ep > 0:
+                if not is_last_perfect_match:
+                    # if not, apply these phonemes to the last match
+                    word2ph[-1] += res[start] - last_ep
+                else:
+                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    extra += plus[1]
+                    if len(word2ph) > 0:
+                        word2ph[-1] += plus[0]
+                    else:
+                        extra += plus[0]
+                total -= res[start] - last_ep
+            word2ph.append(res[end] - res[start] + 1 + extra)
+            total -= res[end] - res[start] + 1
+            is_last_perfect_match = False
+            last_ep = res[end] + 1
+        else:
+            available = res[start] - last_ep
+            if available:
+                if match_failures:
+                    if is_last_perfect_match:
+                        if available > match_failures[1] - match_failures[0] + 1:
+                            available -= 1
+                            extra = 1
+                            total -= 1
+                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        total -= available
+                    else:
+                        if available > match_failures[1] - match_failures[0] + 2:
+                            available -= 2
+                            extra = 1
+                            word2ph[-1] += 1
+                            total -= 2
+                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        total -= available
+                    match_failures = ()
+                elif is_last_perfect_match:
+                    extra = available
+                else:
+                    plus = distribute_phonemes(available, 2)
+                    if len(word2ph) > 0:
+                        word2ph[-1] += plus[0]
+                    else:
+                        extra += plus[0]
+                    extra += plus[1]
+                    total -= available
+            word2ph.append(res[end] - res[start] + 1 + extra)
+            total -= res[end] - res[start] + 1
+            last_ep = res[end] + 1
+            is_last_perfect_match = False
 
+    print(word2ph, sum(word2ph), len(sc))
+    assert sum(word2ph) == len(sc)
     return word2ph
 
 
@@ -115,13 +338,19 @@ def swap(a, b):
     return b, a
 
 
+def text_normalize(a):
+    return a
+
+
 if __name__ == '__main__':
     # demo for matching, designed to be visual
     # sb = [1, 11, 12, 13, 2, 7, 8, 9, 5, 3, 2, 9, 1, 4, 0]
     # sa = [1, 3, 3, 2, 4, 5, 8, 2, 5, 3, 7, 8, 5, 1, 3, 2, 1, 3, 4]
-    sentence = 'わたしは眠りにつく前、マスターから命令を受けました。それを果たしてからにしてほしいんです'
-    from japanese import text_normalize
-    sa = pjt.g2p(sentence).split(' ')
+    sentence = '……嬉しいと変でしたか……?'
+    # from japanese import text_normalize
+    print(g2p_with_accent_info(text_normalize(sentence)))
+    print(calculate_word2ph(text_normalize(sentence)))
+    sa = g2p_with_accent_info(sentence)
     sb = []
     sa = [''] + sa
     for tm in text_normalize(sentence):
@@ -175,7 +404,7 @@ if __name__ == '__main__':
     for x in pf:
         tlp += len(x)
     if len(pf) < 2:
-        pf += (2-len(pf)) * ['']
+        pf += (2 - len(pf)) * ['']
     sat[:SP * opr[0][1] - len(sb[opr[0][0] - 1])] = list(
         f"[{(' ' * ((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1))).join(pf)}"
         f"{' ' * (SP * opr[0][1] - 2 - tlp - len(sb[opr[0][0] - 1]) - (((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1)) * (len(pf) - 1)))}]"
@@ -200,7 +429,7 @@ if __name__ == '__main__':
             sbt.pop(x)
         else:
             x += 1
-    print(f"successfully matched {ans} group{'s' if ans > 1 else ''}, similarity:{round(ans/len(sa)*100, 2)}%, "
-          f"{round(ans/len(sb)*100, 2)}%")
+    print(f"successfully matched {ans} group{'s' if ans > 1 else ''}, similarity:{round(ans / len(sa) * 100, 2)}%, "
+          f"{round(ans / len(sb) * 100, 2)}%")
     print("".join(sat))
     print("".join(sbt))
