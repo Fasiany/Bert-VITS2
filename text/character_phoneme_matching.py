@@ -1,6 +1,8 @@
 import bisect
+import copy
 import os
 import re
+import unicodedata
 from typing import List, Any
 import pyopenjtalk as pjt
 from text.symbols import punctuation
@@ -102,19 +104,35 @@ def g2p_with_accent_info(norm_text):
     # a1为重音音节距离(降) ']'
     # 重音短语起始第二个音节组为升 '/'
     # e3:前一个音节组词性(1=疑问) '?'
+    # 这个函数需要使用word2ph信息
     fl = pjt.extract_fullcontext(norm_text)
     n = len(fl)
     result = []
+    word2ph = calculate_word2ph(norm_text)
+    rcm = {}
+    off = 0
+    for cnt, x in enumerate(word2ph):
+        for sui in range(x):
+            rcm[off+sui] = cnt
+        off += x
+    new_word2ph = copy.deepcopy(word2ph)
+    assert n == sum(new_word2ph) + 2
+    gof = 0
     for current in range(n):
         lab_curr = fl[current]
         p3 = re.search(r"-(.*?)\+", lab_curr).group(1)
         if p3 == 'sil':
+            if not current:
+                gof += 1
             if current == n - 1:
                 e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
+                gof += 1
                 if e3:
                     result.append('?')
+                    new_word2ph[rcm[current - gof]] += 1
                 else:
                     result.append('*')
+                    new_word2ph[rcm[current - gof]] += 1
             continue
         elif p3 == 'pau':
             e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
@@ -133,11 +151,15 @@ def g2p_with_accent_info(norm_text):
 
         if a3 == 1 and a2_next == 1:
             result.append("#")
+            new_word2ph[rcm[current + 1 - gof]] += 1
         elif a1 == 0 and a2_next == a2 + 1 and a2 != f1:
             result.append("]")
+            new_word2ph[rcm[current + 1 - gof]] += 1
         elif a2 == 1 and a2_next == 2:
             result.append("/")
-    return result
+            new_word2ph[rcm[current + 1 - gof]] += 1
+    assert len(result) == sum(new_word2ph)
+    return result, new_word2ph
 
 
 def get_item(key, dic, default):
@@ -156,17 +178,15 @@ def calculate_word2ph(norm_text: str) -> list:
     for cnt, tm in enumerate(norm_text):
         if tm in punctuation:
             punc_num += 1
-            cm[cnt] = (len(ss)+1, len(ss)+1)
+            cm[cnt] = (len(ss) + 1, len(ss) + 1)
             ss.append('pau')
-
-                # consider punctuation to have 1 phoneme, so no further processing required
         else:
             si = len(ss)
             subs = [tc.lower() for tc in pjt.g2p(tm).split(' ')]
             ss += subs
-            cm[cnt] = (si+1, si + len(subs))
+            cm[cnt] = (si + 1, si + len(subs))
             for ind in range(si, si + len(subs)):
-                rcm[ind] = cnt+1
+                rcm[ind] = cnt + 1
     res, _ = LCS_solver(ss, sc)
     tres = {}
     for x in res.keys():
@@ -174,15 +194,12 @@ def calculate_word2ph(norm_text: str) -> list:
     res = tres
     total = len(sc)
     word2ph = []
-    # TODO:Complete the rest part (match known relationships of the sequence and distribute unknown phonemes)
-    offset = 0
     match_failures = ()  # (start_char_id, stop_char_id)
-    last_success = ()
     is_last_perfect_match = True
-    last_ep = 0
+    last_ep = 1
     for x in range(len(norm_text)):
         start = cm[x][0]
-        end = cm[x][1]  # phoneme range in per-processed sequence
+        end = cm[x][1]  # phoneme range in per-processed sequence (index starts from 1)
         start_p = True
         stop_p = True
         while not get_item(start, res, False) and start <= end:
@@ -206,6 +223,9 @@ def calculate_word2ph(norm_text: str) -> list:
             if match_failures:
                 # previous matches failed.Need to distribute available phonemes to them.
                 available = res[start] - last_ep
+                assert available >= 0, ("If you get this error and the input of this function is ALREADY "
+                                        "normalized, this may be a logical bug, please "
+                                        "consider to report it on github")
                 if not is_last_perfect_match:
                     # if the last successful match is not perfect, give it up to 1
                     if available > match_failures[1] - match_failures[0] + 1:
@@ -233,8 +253,11 @@ def calculate_word2ph(norm_text: str) -> list:
             is_last_perfect_match = True
         elif not start_p and stop_p:
             available = res[start] - last_ep
+            assert available >= 0, ("If you get this error and the input of this function is ALREADY "
+                                    "normalized, this may be a logical bug, please "
+                                    "consider to report it on github")
             extra = 0
-            if available:
+            if available or match_failures:
                 if match_failures:
                     if is_last_perfect_match:
                         if available > match_failures[1] - match_failures[0] + 1:
@@ -263,13 +286,16 @@ def calculate_word2ph(norm_text: str) -> list:
                     else:
                         extra += plus[0]
                     total -= res[start] - last_ep
-            word2ph.append(res[start] - res[end] + 1 + extra)
+            word2ph.append(res[end] - res[start] + 1 + extra)
             total -= res[end] - res[start] + 1
             is_last_perfect_match = True
             last_ep = res[end] + 1
         elif start_p and not stop_p:
             if match_failures:
                 available = res[start] - last_ep
+                assert available >= 0, ("If you get this error and the input of this function is ALREADY "
+                                        "normalized, this may be a logical bug, please "
+                                        "consider to report it on github")
                 if not is_last_perfect_match:
                     if available > match_failures[1] - match_failures[0] + 1:
                         word2ph[-1] += 1
@@ -280,7 +306,6 @@ def calculate_word2ph(norm_text: str) -> list:
                 match_failures = ()
             elif res[start] - last_ep > 0:
                 if not is_last_perfect_match:
-                    # if not, apply these phonemes to the last match
                     word2ph[-1] += res[start] - last_ep
                 else:
                     plus = distribute_phonemes(res[start] - last_ep, 2)
@@ -296,7 +321,10 @@ def calculate_word2ph(norm_text: str) -> list:
             last_ep = res[end] + 1
         else:
             available = res[start] - last_ep
-            if available:
+            assert available >= 0, ("If you get this error and the input of this function is ALREADY "
+                                    "normalized, this may be a logical bug, please "
+                                    "consider to report it on github")
+            if available or match_failures:
                 if match_failures:
                     if is_last_perfect_match:
                         if available > match_failures[1] - match_failures[0] + 1:
@@ -328,9 +356,23 @@ def calculate_word2ph(norm_text: str) -> list:
             total -= res[end] - res[start] + 1
             last_ep = res[end] + 1
             is_last_perfect_match = False
-
-    print(word2ph, sum(word2ph), len(sc))
-    assert sum(word2ph) == len(sc)
+        if word2ph[-1] < 0:
+            raise AssertionError
+    if match_failures:
+        available = len(sc) - last_ep + 1
+        assert available >= 0
+        if not is_last_perfect_match:
+            if match_failures[1] - match_failures[0] + 1 < available:
+                word2ph[-1] += 1
+                available -= 1
+                total -= 1
+        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+    # print(word2ph, sum(word2ph), len(sc))
+    assert sum(word2ph) == len(sc), ("If you get this error and the input of this function is ALREADY normalized, "
+                                     "this may be a logical bug, please consider to report it on github")
+    assert len(word2ph) == len(norm_text), ("If you get this error and the input of this function is ALREADY "
+                                            "normalized, this may be a logical bug, please "
+                                            "consider to report it on github")
     return word2ph
 
 
@@ -338,30 +380,69 @@ def swap(a, b):
     return b, a
 
 
-def text_normalize(a):
-    return a
+_CURRENCY_MAP = {"$": "ドル", "¥": "円", "£": "ポンド", "€": "ユーロ"}
+
+
+def japanese_convert_numbers_to_words(text: str) -> str:
+    res = text
+    # res = _NUMBER_WITH_SEPARATOR_RX.sub(lambda m: m[0].replace(",", ""), text)
+    # res = _CURRENCY_RX.sub(lambda m: m[2] + _CURRENCY_MAP.get(m[1], m[1]), res)
+    for x in _CURRENCY_MAP.keys():
+        res = res.replace(x, _CURRENCY_MAP[x])
+    # res = _NUMBER_RX.sub(lambda m: num2words(m[0], lang="ja"), res)
+    return res
+
+
+rep_map = {
+    "：": ",",
+    "；": ",",
+    "，": ",",
+    "。": ".",
+    "！": "!",
+    "？": "?",
+    "\n": ".",
+    "·": ",",
+    "、": ",",
+    "...": "…",
+}
+
+
+def replace_punctuation(text):
+    # pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
+    replaced_text = text
+    # replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
+
+    for x in rep_map.keys():
+        replaced_text = replaced_text.replace(x, rep_map[x])
+    return replaced_text
+
+
+def text_normalize(text):
+    res = unicodedata.normalize("NFKC", text)
+    res = japanese_convert_numbers_to_words(res)
+    # res = "".join([i for i in res if is_japanese_character(i)])
+    res = replace_punctuation(res)
+    return res
 
 
 if __name__ == '__main__':
     # demo for matching, designed to be visual
-    # sb = [1, 11, 12, 13, 2, 7, 8, 9, 5, 3, 2, 9, 1, 4, 0]
-    # sa = [1, 3, 3, 2, 4, 5, 8, 2, 5, 3, 7, 8, 5, 1, 3, 2, 1, 3, 4]
-    sentence = '……嬉しいと変でしたか……?'
-    # from japanese import text_normalize
+    sentence = 'わたしはマスターの所有物ですので。勝手に売買するのは違法です'
+    norm = text_normalize(sentence)
     print(g2p_with_accent_info(text_normalize(sentence)))
-    print(calculate_word2ph(text_normalize(sentence)))
-    sa = g2p_with_accent_info(sentence)
+    print("word2ph:", calculate_word2ph(text_normalize(sentence)))
+    sa, word2ph = g2p_with_accent_info(text_normalize(sentence))
+    print('new word2ph:', word2ph)
     sb = []
     sa = [''] + sa
+    g2p_r, _ = g2p_with_accent_info(text_normalize(sentence))
     for tm in text_normalize(sentence):
         if tm in ["!", "?", "…", ",", ".", "'", "-"]:
-            if sb[-1] != 'pau':
-                sb.append('pau')
+            sb.append('pau')
         else:
             sb += pjt.g2p(tm).split(' ')
+
     sb = [''] + sb
-    # sa = list("fUtokorokashiidarekaniyobibaretamitainasoNnakaifunoonakiwakedesu 114514".lower())
-    # sb = list('natsUkashiidarekaniyobaretamitainapausoNnakaisekIfunoonakibuNdesU 1919810'.lower())
     if len(sa) < len(sb):
         sa, sb = swap(sa, sb)
     lge = 0
@@ -373,6 +454,7 @@ if __name__ == '__main__':
     cr = {}
     for x in res.keys():
         cr[x[1]] = x[0]
+    tn = len(text_normalize(sentence))
     SP = 114  # if you get formatting issues while checking results, try setting this variable bigger
     sp = SP * len(sa)
     sat = list(sp * " ")
@@ -423,6 +505,8 @@ if __name__ == '__main__':
     sbt = list(sbt)
     mi = 0
     x = 0
+    print(sat)
+    print(sbt)
     while x < len(sat) - 1:
         if sat[x] == sbt[x] == ' ' and (sbt[x - 1] == sbt[x + 1] == ' ') and (sat[x - 1] == sat[x + 1] == ' '):
             sat.pop(x)
@@ -433,3 +517,19 @@ if __name__ == '__main__':
           f"{round(ans / len(sb) * 100, 2)}%")
     print("".join(sat))
     print("".join(sbt))
+    off_w = 0
+    op1 = ""
+    op2 = ""
+    for x in range(tn):
+        if not word2ph[x]:
+            continue
+        phonemes = g2p_r[off_w:off_w+word2ph[x]]
+        st = " ".join(phonemes) + "    "
+        op1 += st + "|"
+        op2 += f"[{str(x+1).center(len(st)-2, ' ')}]|"
+        off_w += word2ph[x]
+    print(op1.replace('/', '↑').replace(']', '↓'))
+    print(op2)
+    for cnt, x in enumerate(norm):
+        print((cnt+1, x), end=" ")
+    print(f"\n{norm}")
