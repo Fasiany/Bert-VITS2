@@ -82,11 +82,16 @@ def LCS_solver(seq_a: List[Any], seq_b: List[Any]) -> (dict, int):
     return res, dp[n][m]
 
 
+REVERSE = True
+
+
 def distribute_phonemes(pn, cn):
     resu = [pn // cn] * cn
     rem = pn - cn * (pn // cn)
     for x in range(rem):
-        resu[cn - x - 1] += 1
+        resu[x] += 1
+    if REVERSE:
+        resu.reverse()
     return resu
 
 
@@ -99,6 +104,11 @@ def numeric_feature_by_regex(regex, s):
 
 
 def g2p_with_accent_info(norm_text):
+    """
+    Parameters:
+        norm_text: The normalized text
+    returns phonemes sequence with accent information and pause flags and the word2ph sequence of it
+    """
     # https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html#10.2-Tacotron-2-%E3%82%92%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E9%81%A9%E7%94%A8%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E5%A4%89%E6%9B%B4
     # 以重音短语分组作为分割 ' '
     # a1为重音音节距离(降) ']'
@@ -113,7 +123,7 @@ def g2p_with_accent_info(norm_text):
     off = 0
     for cnt, x in enumerate(word2ph):
         for sui in range(x):
-            rcm[off+sui] = cnt
+            rcm[off + sui] = cnt
         off += x
     new_word2ph = copy.deepcopy(word2ph)
     assert n == sum(new_word2ph) + 2
@@ -170,6 +180,11 @@ def get_item(key, dic, default):
 
 
 def calculate_word2ph(norm_text: str) -> list:
+    """
+    Parameters:
+        norm_text: The normalized text
+    returns the word2ph(Number of phonemes in each character) sequence of the given input
+    """
     sc = [x.lower() for x in pjt.g2p(norm_text).split(' ')]
     ss = []
     cm = {}
@@ -431,7 +446,10 @@ if __name__ == '__main__':
     norm = text_normalize(sentence)
     print(g2p_with_accent_info(text_normalize(sentence)))
     print("word2ph:", calculate_word2ph(text_normalize(sentence)))
-    sa, word2ph = g2p_with_accent_info(text_normalize(sentence))
+    sa_, word2ph = g2p_with_accent_info(text_normalize(sentence))
+    sa = []
+    for x in sa_:
+        sa.append(x.lower())
     print('new word2ph:', word2ph)
     sb = []
     sa = [''] + sa
@@ -440,7 +458,7 @@ if __name__ == '__main__':
         if tm in ["!", "?", "…", ",", ".", "'", "-"]:
             sb.append('pau')
         else:
-            sb += pjt.g2p(tm).split(' ')
+            sb += [x.lower() for x in pjt.g2p(tm).split(' ')]
 
     sb = [''] + sb
     if len(sa) < len(sb):
@@ -492,15 +510,6 @@ if __name__ == '__main__':
         f"{' ' * (SP * opr[0][1] - 2 - tlp - len(sb[opr[0][0] - 1]) - (((SP * opr[0][1] - len(sb[opr[0][0] - 1]) - 2 - tlp) // (len(pf) - 1)) * (len(pf) - 1)))}]"
     )
     sat = "".join(sat)
-    # sbt = "".join(sbt)
-    tbr = []
-    x = 0
-    while x < len(sat):
-        if sat[x:x + SP - lge] == " " * (SP - lge):
-            tbr.append((x, x + SP - lge - 1, SP - lge - 1))
-            x += SP - lge
-        else:
-            x += 1
     sat = list(sat)
     sbt = list(sbt)
     mi = 0
@@ -523,13 +532,13 @@ if __name__ == '__main__':
     for x in range(tn):
         if not word2ph[x]:
             continue
-        phonemes = g2p_r[off_w:off_w+word2ph[x]]
+        phonemes = g2p_r[off_w:off_w + word2ph[x]]
         st = " ".join(phonemes) + "    "
         op1 += st + "|"
-        op2 += f"[{str(x+1).center(len(st)-2, ' ')}]|"
+        op2 += f"[{str(x + 1).center(len(st) - 2, ' ')}]|"
         off_w += word2ph[x]
     print(op1.replace('/', '↑').replace(']', '↓'))
     print(op2)
     for cnt, x in enumerate(norm):
-        print((cnt+1, x), end=" ")
+        print((cnt + 1, x), end=" ")
     print(f"\n{norm}")

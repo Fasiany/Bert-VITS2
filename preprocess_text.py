@@ -39,7 +39,7 @@ def main(
 ):
     if cleaned_path is None:
         cleaned_path = transcription_path + ".cleaned"
-
+    errors = []
     if clean:
         out_file = open(cleaned_path, "w", encoding="utf-8")
         for line in tqdm(open(transcription_path, encoding="utf-8").readlines()):
@@ -59,15 +59,16 @@ def main(
                         " ".join([str(i) for i in word2ph]),
                     )
                 )
-            # TODO:Due to tons of warnings may be thrown during the whole progress, i decide not to handle errors
-            #  until i update the code to deal with the warnings.Now just make the program crash on errors
-            except FileExistsError as error:
-                print("err!", line, error)
+            except Exception as error:
+                errors.append((error, line))
 
         out_file.close()
 
         transcription_path = cleaned_path
-
+    if errors:
+        print(f"{len(errors)} error{'s' if len(errors) > 1 else ''} occurred during cleaning:")
+        for err in errors:
+            print(f'{repr(err[0])}:{err[1]}')
     spk_utt_map = defaultdict(list)
     spk_id_map = {}
     current_sid = 0

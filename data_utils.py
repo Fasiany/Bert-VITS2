@@ -1,5 +1,7 @@
 import os
 import random
+
+import numpy as np
 import torch
 import torch.utils.data
 from tqdm import tqdm
@@ -145,27 +147,24 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             word2ph[0] += 1
         bert_path = wav_path.replace(".wav", ".bert.pt")
         emotion_path = wav_path.replace(".wav", ".emo.npy")
-        # the length of bert input and phonemes will no longer match since g2p is updated.
-        # They are more likely not to be identical
-        # but the difference should not be huge, so continue anyway.
         try:
             bert = torch.load(bert_path)
-            # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
         except:
             bert = get_bert(text, word2ph, language_str, "cuda")
             torch.save(bert, bert_path)
-            # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
         assert language_str == 'JP', "This project only supports Japanese for now."
         emotion = torch.FloatTensor(np.load(emotion_path))
         ja_bert = bert
         # dimension info of bert:[1024, len(phonemes)]
-        # assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
-        #     ja_bert.shape,
-        #     len(phone),
-        #     len(word2ph),
-        #     word2ph,
-        #     text,
-        # )}"""
+        assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+            ja_bert.shape,
+            len(phone),
+            len(word2ph),
+            word2ph,
+            text,
+        )}"""
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
@@ -199,8 +198,8 @@ class TextAudioSpeakerCollate:
             torch.LongTensor([x[1].size(1) for x in batch]), dim=0, descending=True
         )
 
-        # text length may not equals to bert
-        max_text_len = max([batch[ids_sorted_decreasing[i]][7].size(1) for i in range(len(ids_sorted_decreasing))] + [len(x[0]) for x in batch])
+        max_text_len = max([len(x[0]) for x in batch])
+        # [batch[ids_sorted_decreasing[i]][7].size(1) for i in range(len(ids_sorted_decreasing))] +
         max_spec_len = max([x[1].size(1) for x in batch])
         max_wav_len = max([x[2].size(1) for x in batch])
 
@@ -212,10 +211,9 @@ class TextAudioSpeakerCollate:
         text_padded = torch.LongTensor(len(batch), max_text_len)
         tone_padded = torch.LongTensor(len(batch), max_text_len)
         language_padded = torch.LongTensor(len(batch), max_text_len)
-        # bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
-        # set emotion vector length depend on the model.1024 is the default one
         emotion_padded = torch.FloatTensor(len(batch), 1024)
         ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
+        # Notice that Japanese and Chinese bert features have the same dimension info
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
         wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
@@ -224,7 +222,6 @@ class TextAudioSpeakerCollate:
         language_padded.zero_()
         spec_padded.zero_()
         wav_padded.zero_()
-        # bert_padded.zero_()
         emotion_padded.zero_()
         ja_bert_padded.zero_()
         for i in range(len(ids_sorted_decreasing)):
@@ -250,9 +247,6 @@ class TextAudioSpeakerCollate:
             language = row[5]
             language_padded[i, : language.size(0)] = language
 
-            # bert = row[6]
-            # bert_padded[i, :, : bert.size(1)] = bert
-            # emotion use the position where used to be bert
             emotion = row[6]
             emotion_padded[i, :] = emotion
 

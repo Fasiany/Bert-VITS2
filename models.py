@@ -358,16 +358,8 @@ class TextEncoder(nn.Module):
         emb_x = self.emb(x)
         emo_emb = self.emo_proj(emo.unsqueeze(1))
         ja_bert_emb = self.ja_bert_proj(ja_bert).transpose(1, 2)
-        # print("shape of x", emb_x.shape, self.tone_emb(tone).shape, self.language_emb(language).shape, emo_emb.shape,
-        #       ja_bert_emb.shape)
-        shp_diff = ja_bert_emb.shape[1] - self.emb(x).shape[1]
         emb_tone = self.tone_emb(tone)
         emb_lan = self.language_emb(language)
-        # if shp_diff > 0:
-        #     emb_x = torch.cat((emb_x, torch.zeros(emb_x.shape[0], shp_diff, emb_x.shape[2]).to('cuda')), dim=1)
-        #     emb_tone = torch.cat((self.tone_emb(tone), torch.zeros(emb_x.shape[0], shp_diff, emb_x.shape[2]).to('cuda')), dim=1)
-        #     emb_lan = torch.cat((self.language_emb(language), torch.zeros(emb_x.shape[0], shp_diff, emb_x.shape[2]).to('cuda')), dim=1)
-
 
         x = (
             emb_x

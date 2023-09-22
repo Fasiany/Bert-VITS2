@@ -34,7 +34,7 @@ if sys.platform == "darwin" and torch.backends.mps.is_available():
 else:
     device = "cuda"
 
-# TODO:update webui since emotion support haven't been added for inference code
+# TODO:update webui for its code was tested in previous environment
 
 
 def get_text(text, word2ph, phone, tone, language_str, wav_path):

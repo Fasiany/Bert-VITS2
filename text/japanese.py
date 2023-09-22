@@ -7,6 +7,7 @@ import re
 import sys
 import unicodedata
 from typing import TextIO, List
+from text.character_phoneme_matching import g2p_with_accent_info
 
 import torch
 from transformers import AutoTokenizer
@@ -640,7 +641,7 @@ def character_phonemes_corresponding_relationship_solver(norm_text):
 
 
 def g2p(norm_text):
-    # TODO:this function is to be updated
+    phs, word2ph = g2p_with_accent_info()
     phonemes = ['_'] + phs + ['_']
     tones = [0 for i in phonemes]
     word2ph = [1] + word2ph + [1]
