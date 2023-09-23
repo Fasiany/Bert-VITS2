@@ -8,6 +8,7 @@ import click
 from text.cleaner import clean_text
 from text.japanese import process_bert
 from emotion_extract import preprocess_one
+from text.japanese_bert import tokenizer
 
 
 @click.command()
@@ -43,11 +44,17 @@ def main(
     if clean:
         out_file = open(cleaned_path, "w", encoding="utf-8")
         for line in tqdm(open(transcription_path, encoding="utf-8").readlines()):
+            fae = False
             try:
                 utt, spk, language, text = line.strip().split("|")
                 process_bert(text, utt.replace(".wav", ".bert.pt"))
                 preprocess_one(utt)
                 norm_text, phones, tones, word2ph = clean_text(text, language)
+                w2p = word2ph
+                # due to unknown reasons, the value of tokenized sequence does not keep the same
+                # assert sum(w2p) == sum(word2ph), f"{tokenizer.tokenize(text)}, {w2p}, {word2ph}, {norm_text}, {len(norm_text)}, {len(w2p)}, {len(word2ph)}"
+                # fae = True
+                # assert len(w2p) == len(tokenizer.tokenize(text))+2, f"{tokenizer.tokenize(text)}, {w2p}, {word2ph}, \n{norm_text}, {len(norm_text)}, {len(w2p)}, {len(word2ph)}"
                 out_file.write(
                     "{}|{}|{}|{}|{}|{}|{}\n".format(
                         utt,
@@ -56,10 +63,13 @@ def main(
                         norm_text,
                         " ".join(phones),
                         " ".join([str(i) for i in tones]),
-                        " ".join([str(i) for i in word2ph]),
+                        " ".join([str(i) for i in w2p]),
                     )
                 )
             except Exception as error:
+                if fae:
+                    raise Exception
+                print('error!')
                 errors.append((error, line))
 
         out_file.close()

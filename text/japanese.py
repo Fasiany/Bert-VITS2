@@ -521,7 +521,7 @@ rep_map = {
     "\n": ".",
     "·": ",",
     "、": ",",
-    "...": "…",
+    "…": "...",
 }
 
 
@@ -549,7 +549,7 @@ def text_normalize(text):
     res = japanese_convert_numbers_to_words(res)
     # res = "".join([i for i in res if is_japanese_character(i)])
     res = replace_punctuation(res)
-    return res
+    return res.replace('\n', '').replace(" ", "")
 
 
 # def distribute_phone(n_phone, n_word):
@@ -592,66 +592,17 @@ tokenizer = AutoTokenizer.from_pretrained(BERT)
 #     return phones, tones, word2ph
 
 
-def LIS_solver(seq: List[int]) -> int:
-    n = len(seq)
-    seq = [0] + seq
-    dp = [0] * n
-    i = 0
-    for x in range(1, n + 1):
-        if seq[x] > dp[i]:
-            i += 1
-            dp[i] = seq[x]
-        else:
-            ind = bisect.bisect(dp, x) - 1
-            dp[ind] = min(dp[ind], seq[x])
-    return i
-
-
-def LCS_solver(seq_a: List[int], seq_b: List[int]) -> int:
-    # O(nlogn)
-    rg = set(seq_a)
-    n = len(seq_a)
-    seq_a = seq_a
-    usages = {}
-    cor = {}
-    for i, x in enumerate(rg):
-        usages[x] = 0
-        cor[x] = i+1
-    pos = len(seq_a) * [[]]
-    for x in range(n):
-        pos[cor[seq_a[x]]].append(x)
-    tm = []
-    for x in range(len(seq_b)):
-        try:
-            t_pos = pos[cor[seq_b[x]]][usages[seq_b[x]]]
-            usages[seq_b[x]] += 1
-        except KeyError:
-            tm.append(-1)
-        else:
-            tm.append(t_pos)
-    return LIS_solver(tm)
-
-
-def character_phonemes_corresponding_relationship_solver(norm_text):
-    """This function builds the corresponding table between each characters sentence and phonemes
-    Notice that the table might not be absolutely right
-    """
-
-    pass
-
-
 def g2p(norm_text):
-    phs, word2ph = g2p_with_accent_info()
+    phs, word2ph = g2p_with_accent_info(norm_text)
     phonemes = ['_'] + phs + ['_']
-    tones = [0 for i in phonemes]
+    tones = [0 for _ in phonemes]
     word2ph = [1] + word2ph + [1]
     return phonemes, tones, word2ph
 
 
 def process_bert(txt, file=None):
     txt = text_normalize(txt)
-    phonemes, tones, word2ph = g2p(txt)
-    bert_info = get_bert_feature(txt, word2ph)
+    bert_info = get_bert_feature(text_normalize(txt))
     if file is not None:
         torch.save(bert_info, file)
     return bert_info

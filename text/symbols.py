@@ -1,4 +1,4 @@
-punctuation = ["!", "?", "…", ",", ".", "'", "-"]
+punctuation = ["!", "?", "…", ",", ".", "'", "-", "~"]
 pu_symbols = punctuation + ["SP", "UNK"]
 pad = "_"
 
@@ -74,8 +74,6 @@ num_zh_tones = 6
 
 # japanese
 ja_symbols = list('AEINOQUabdefghijklmnoprstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#')
-for x in range(ord('a'), ord('z')+1):
-    ja_symbols.append(chr(x).upper())
 num_ja_tones = 1
 
 # English

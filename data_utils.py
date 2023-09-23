@@ -8,8 +8,10 @@ from tqdm import tqdm
 from loguru import logger
 import commons
 from mel_processing import spectrogram_torch, mel_spectrogram_torch
+from text.japanese_bert import tokenizer
 from utils import load_wav_to_torch, load_filepaths_and_text
-from text import cleaned_text_to_sequence, get_bert
+from text import cleaned_text_to_sequence, get_bert, get_bert_train
+from text.japanese import text_normalize
 
 """Multi speaker version"""
 
@@ -142,18 +144,22 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             phone = commons.intersperse(phone, 0)
             tone = commons.intersperse(tone, 0)
             language = commons.intersperse(language, 0)
+            nw = []
             for i in range(len(word2ph)):
-                word2ph[i] = word2ph[i] * 2
-            word2ph[0] += 1
+                nw.append(word2ph[i] * 2)
+            nw[0] += 1
+            word2ph = nw
         bert_path = wav_path.replace(".wav", ".bert.pt")
         emotion_path = wav_path.replace(".wav", ".emo.npy")
         try:
             bert = torch.load(bert_path)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
+            bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}"
         except:
-            bert = get_bert(text, word2ph, language_str, "cuda")
+            bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
             torch.save(bert, bert_path)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
+            bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
         assert language_str == 'JP', "This project only supports Japanese for now."
         emotion = torch.FloatTensor(np.load(emotion_path))
         ja_bert = bert

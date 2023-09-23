@@ -1,10 +1,11 @@
 import bisect
 import copy
-import os
 import re
 import unicodedata
 from typing import List, Any
+
 import pyopenjtalk as pjt
+
 from text.symbols import punctuation
 
 
@@ -30,24 +31,24 @@ def Permutation_LCS_solver(seq_a: List[int], seq_b: List[int]) -> int:
     seq_a = seq_a
     usages = {}
     cor = {}
-    for i, x in enumerate(rg):
-        usages[x] = 0
-        cor[x] = i + 1
+    for i, x2 in enumerate(rg):
+        usages[x2] = 0
+        cor[x2] = i + 1
     pos = []
-    for x in range(len(seq_a)):
+    for x2 in range(len(seq_a)):
         pos.append([])
-    for x in range(n):
-        pos[cor[seq_a[x]]].append(x)
-    tm = []
-    for x in range(len(seq_b)):
+    for x2 in range(n):
+        pos[cor[seq_a[x2]]].append(x2)
+    tm2 = []
+    for x2 in range(len(seq_b)):
         try:
-            t_pos = pos[cor[seq_b[x]]][usages[seq_b[x]]]
-            usages[seq_b[x]] += 1
+            t_pos = pos[cor[seq_b[x2]]][usages[seq_b[x2]]]
+            usages[seq_b[x2]] += 1
         except (IndexError, KeyError):
-            tm.append(-1)
+            tm2.append(-1)
         else:
-            tm.append(t_pos)
-    return LIS_solver(tm)
+            tm2.append(t_pos)
+    return LIS_solver(tm2)
 
 
 def LCS_solver(seq_a: List[Any], seq_b: List[Any]) -> (dict, int):
@@ -73,13 +74,13 @@ def LCS_solver(seq_a: List[Any], seq_b: List[Any]) -> (dict, int):
                     dp[i][j] = dp[i][j - 1]
                     trans[(i, j)] = (i, j - 1)
     cur = (n, m)
-    res = {}
+    result = {}
     while cur[0] and cur[1]:
         nxt = trans[cur]
         if nxt == (cur[0] - 1, cur[1] - 1):
-            res[cur] = nxt
+            result[cur] = nxt
         cur = nxt
-    return res, dp[n][m]
+    return result, dp[n][m]
 
 
 REVERSE = True
@@ -88,8 +89,8 @@ REVERSE = True
 def distribute_phonemes(pn, cn):
     resu = [pn // cn] * cn
     rem = pn - cn * (pn // cn)
-    for x in range(rem):
-        resu[x] += 1
+    for i in range(rem):
+        resu[i] += 1
     if REVERSE:
         resu.reverse()
     return resu
@@ -103,7 +104,7 @@ def numeric_feature_by_regex(regex, s):
     return int(match.group(1))
 
 
-def g2p_with_accent_info(norm_text):
+def g2p_with_accent_info(norm_text: str):
     """
     Parameters:
         norm_text: The normalized text
@@ -118,15 +119,20 @@ def g2p_with_accent_info(norm_text):
     fl = pjt.extract_fullcontext(norm_text)
     n = len(fl)
     result = []
-    word2ph = calculate_word2ph(norm_text)
+    word2phonemes = calculate_word2ph(norm_text)
     rcm = {}
     off = 0
-    for cnt, x in enumerate(word2ph):
-        for sui in range(x):
-            rcm[off + sui] = cnt
-        off += x
-    new_word2ph = copy.deepcopy(word2ph)
-    assert n == sum(new_word2ph) + 2
+    for count, x2 in enumerate(word2phonemes):
+        for sui in range(x2):
+            rcm[off + sui] = count
+        off += x2
+    new_word2ph = copy.deepcopy(word2phonemes)
+    ed = '\n'
+    if not fl:
+        print(f"Can't extract any context from [{norm_text.strip(ed)}]!")
+    assert n == sum(new_word2ph) + 2, (f"Preprocessing failed, can't proceed with this text![{norm_text.strip(ed)}]\n"
+                                       f"Expect length of context to be {sum(new_word2ph) + 2}, found {len(fl)}\n"
+                                       f"word2ph:{new_word2ph}")
     gof = 0
     for current in range(n):
         lab_curr = fl[current]
@@ -137,7 +143,14 @@ def g2p_with_accent_info(norm_text):
             if current == n - 1:
                 e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
                 gof += 1
-                if e3:
+                try:
+                    _ = norm_text[rcm[current - gof + 1]]
+                    gof -= 1
+                except KeyError:
+                    pass
+                if norm_text[rcm[current - gof]] == '!':
+                    result.append('!')
+                elif e3:
                     result.append('?')
                     new_word2ph[rcm[current - gof]] += 1
                 else:
@@ -146,12 +159,14 @@ def g2p_with_accent_info(norm_text):
             continue
         elif p3 == 'pau':
             e3 = numeric_feature_by_regex(r"!(\d+)_", lab_curr)
-            if e3:
+            if norm_text[rcm[current - gof]] == '!':
+                result.append('!')
+            elif e3:
                 result.append('?')
             else:
                 result.append(',')
         else:
-            result.append(p3)
+            result.append(p3.replace('ch', 'ʧ').replace('sh', 'ʃ').replace('cl', 'Q').replace('ts', 'ʦ'))
         a1 = numeric_feature_by_regex(r"/A:([0-9\-]+)\+", lab_curr)
         a2 = numeric_feature_by_regex(r"\+(\d+)\+", lab_curr)
         a3 = numeric_feature_by_regex(r"\+(\d+)/", lab_curr)
@@ -168,7 +183,19 @@ def g2p_with_accent_info(norm_text):
         elif a2 == 1 and a2_next == 2:
             result.append("/")
             new_word2ph[rcm[current + 1 - gof]] += 1
+    if norm_text[-1] == '!' and not new_word2ph[-1] and result[-1] == '*':
+        i = -2
+        try:
+            while new_word2ph[i] < 2:
+                i -= 1
+            new_word2ph[i] -= 1
+            # new_word2ph[-2] -= 1
+            new_word2ph[-1] += 1
+        except IndexError:
+            pass
+        result[-1] = '!'
     assert len(result) == sum(new_word2ph)
+    assert min(new_word2ph) >= 0
     return result, new_word2ph
 
 
@@ -185,30 +212,32 @@ def calculate_word2ph(norm_text: str) -> list:
         norm_text: The normalized text
     returns the word2ph(Number of phonemes in each character) sequence of the given input
     """
-    sc = [x.lower() for x in pjt.g2p(norm_text).split(' ')]
+    sc = [x.lower().replace('ch', 'ʧ').replace('sh', 'ʃ').replace('cl', 'Q').replace('ts', 'ʦ') for x in
+          pjt.g2p(norm_text).split(' ')]
     ss = []
     cm = {}
     rcm = {}
     punc_num = 0
-    for cnt, tm in enumerate(norm_text):
-        if tm in punctuation:
+    for count, tc in enumerate(norm_text):
+        if tc in punctuation:
             punc_num += 1
-            cm[cnt] = (len(ss) + 1, len(ss) + 1)
+            cm[count] = (len(ss) + 1, len(ss) + 1)
             ss.append('pau')
         else:
             si = len(ss)
-            subs = [tc.lower() for tc in pjt.g2p(tm).split(' ')]
+            subs = [tc.lower().replace('ch', 'ʧ').replace('sh', 'ʃ').replace('cl', 'Q').replace('ts', 'ʦ') for tc in
+                    pjt.g2p(tc).split(' ')]
             ss += subs
-            cm[cnt] = (si + 1, si + len(subs))
+            cm[count] = (si + 1, si + len(subs))
             for ind in range(si, si + len(subs)):
-                rcm[ind] = cnt + 1
-    res, _ = LCS_solver(ss, sc)
+                rcm[ind] = count + 1
+    result, _ = LCS_solver(ss, sc)
     tres = {}
-    for x in res.keys():
+    for x in result.keys():
         tres[x[0]] = x[1]
-    res = tres
+    result = tres
     total = len(sc)
-    word2ph = []
+    word2phonemes = []
     match_failures = ()  # (start_char_id, stop_char_id)
     is_last_perfect_match = True
     last_ep = 1
@@ -217,10 +246,10 @@ def calculate_word2ph(norm_text: str) -> list:
         end = cm[x][1]  # phoneme range in per-processed sequence (index starts from 1)
         start_p = True
         stop_p = True
-        while not get_item(start, res, False) and start <= end:
+        while not get_item(start, result, False) and start <= end:
             start += 1
             start_p = False
-        while not get_item(end, res, False) and start <= end:
+        while not get_item(end, result, False) and start <= end:
             end -= 1
             stop_p = False
         if start > end:
@@ -234,40 +263,40 @@ def calculate_word2ph(norm_text: str) -> list:
         extra = 0
         if start_p and stop_p:
             # perfect match
-            total -= res[end] - res[start] + 1
+            total -= result[end] - result[start] + 1
             if match_failures:
                 # previous matches failed.Need to distribute available phonemes to them.
-                available = res[start] - last_ep
+                available = result[start] - last_ep
                 assert available >= 0, ("If you get this error and the input of this function is ALREADY "
                                         "normalized, this may be a logical bug, please "
                                         "consider to report it on github")
                 if not is_last_perfect_match:
                     # if the last successful match is not perfect, give it up to 1
                     if available > match_failures[1] - match_failures[0] + 1:
-                        word2ph[-1] += 1
+                        word2phonemes[-1] += 1
                         available -= 1
                         total -= 1
-                word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                 total -= available
                 match_failures = ()
                 # check if there are any not used phonemes before res[start] and if the last match is perfect
-            elif res[start] - last_ep > 0:
+            elif result[start] - last_ep > 0:
                 if not is_last_perfect_match:
                     # if not, apply these phonemes to the last match
-                    word2ph[-1] += res[start] - last_ep
+                    word2phonemes[-1] += result[start] - last_ep
                 else:
-                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    plus = distribute_phonemes(result[start] - last_ep, 2)
                     extra += plus[1]
-                    if len(word2ph) > 0:
-                        word2ph[-1] += plus[0]
+                    if len(word2phonemes) > 0:
+                        word2phonemes[-1] += plus[0]
                     else:
                         extra += plus[0]
-                total -= res[start] - last_ep
-            word2ph.append(res[end] - res[start] + 1 + extra)
-            last_ep = res[end] + 1
+                total -= result[start] - last_ep
+            word2phonemes.append(result[end] - result[start] + 1 + extra)
+            last_ep = result[end] + 1
             is_last_perfect_match = True
         elif not start_p and stop_p:
-            available = res[start] - last_ep
+            available = result[start] - last_ep
             assert available >= 0, ("If you get this error and the input of this function is ALREADY "
                                     "normalized, this may be a logical bug, please "
                                     "consider to report it on github")
@@ -279,63 +308,63 @@ def calculate_word2ph(norm_text: str) -> list:
                             available -= 1
                             extra = 1
                             total -= 1
-                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                         total -= available
                     else:
                         if available > match_failures[1] - match_failures[0] + 2:
                             available -= 2
                             extra = 1
-                            word2ph[-1] += 1
+                            word2phonemes[-1] += 1
                             total -= 2
-                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                         total -= available
                     match_failures = ()
                 elif is_last_perfect_match:
                     # apply these to the current char
                     extra = available
                 else:
-                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    plus = distribute_phonemes(result[start] - last_ep, 2)
                     extra += plus[1]
-                    if len(word2ph) > 0:
-                        word2ph[-1] += plus[0]
+                    if len(word2phonemes) > 0:
+                        word2phonemes[-1] += plus[0]
                     else:
                         extra += plus[0]
-                    total -= res[start] - last_ep
-            word2ph.append(res[end] - res[start] + 1 + extra)
-            total -= res[end] - res[start] + 1
+                    total -= result[start] - last_ep
+            word2phonemes.append(result[end] - result[start] + 1 + extra)
+            total -= result[end] - result[start] + 1
             is_last_perfect_match = True
-            last_ep = res[end] + 1
+            last_ep = result[end] + 1
         elif start_p and not stop_p:
             if match_failures:
-                available = res[start] - last_ep
+                available = result[start] - last_ep
                 assert available >= 0, ("If you get this error and the input of this function is ALREADY "
                                         "normalized, this may be a logical bug, please "
                                         "consider to report it on github")
                 if not is_last_perfect_match:
                     if available > match_failures[1] - match_failures[0] + 1:
-                        word2ph[-1] += 1
+                        word2phonemes[-1] += 1
                         available -= 1
                         total -= 1
-                word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                 total -= available
                 match_failures = ()
-            elif res[start] - last_ep > 0:
+            elif result[start] - last_ep > 0:
                 if not is_last_perfect_match:
-                    word2ph[-1] += res[start] - last_ep
+                    word2phonemes[-1] += result[start] - last_ep
                 else:
-                    plus = distribute_phonemes(res[start] - last_ep, 2)
+                    plus = distribute_phonemes(result[start] - last_ep, 2)
                     extra += plus[1]
-                    if len(word2ph) > 0:
-                        word2ph[-1] += plus[0]
+                    if len(word2phonemes) > 0:
+                        word2phonemes[-1] += plus[0]
                     else:
                         extra += plus[0]
-                total -= res[start] - last_ep
-            word2ph.append(res[end] - res[start] + 1 + extra)
-            total -= res[end] - res[start] + 1
+                total -= result[start] - last_ep
+            word2phonemes.append(result[end] - result[start] + 1 + extra)
+            total -= result[end] - result[start] + 1
             is_last_perfect_match = False
-            last_ep = res[end] + 1
+            last_ep = result[end] + 1
         else:
-            available = res[start] - last_ep
+            available = result[start] - last_ep
             assert available >= 0, ("If you get this error and the input of this function is ALREADY "
                                     "normalized, this may be a logical bug, please "
                                     "consider to report it on github")
@@ -346,49 +375,61 @@ def calculate_word2ph(norm_text: str) -> list:
                             available -= 1
                             extra = 1
                             total -= 1
-                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                         total -= available
                     else:
                         if available > match_failures[1] - match_failures[0] + 2:
                             available -= 2
                             extra = 1
-                            word2ph[-1] += 1
+                            word2phonemes[-1] += 1
                             total -= 2
-                        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+                        word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
                         total -= available
                     match_failures = ()
                 elif is_last_perfect_match:
                     extra = available
                 else:
                     plus = distribute_phonemes(available, 2)
-                    if len(word2ph) > 0:
-                        word2ph[-1] += plus[0]
+                    if len(word2phonemes) > 0:
+                        word2phonemes[-1] += plus[0]
                     else:
                         extra += plus[0]
                     extra += plus[1]
                     total -= available
-            word2ph.append(res[end] - res[start] + 1 + extra)
-            total -= res[end] - res[start] + 1
-            last_ep = res[end] + 1
+            word2phonemes.append(result[end] - result[start] + 1 + extra)
+            total -= result[end] - result[start] + 1
+            last_ep = result[end] + 1
             is_last_perfect_match = False
-        if word2ph[-1] < 0:
+        if word2phonemes[-1] < 0:
             raise AssertionError
     if match_failures:
         available = len(sc) - last_ep + 1
         assert available >= 0
         if not is_last_perfect_match:
             if match_failures[1] - match_failures[0] + 1 < available:
-                word2ph[-1] += 1
+                word2phonemes[-1] += 1
                 available -= 1
                 total -= 1
-        word2ph += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
+        word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
     # print(word2ph, sum(word2ph), len(sc))
-    assert sum(word2ph) == len(sc), ("If you get this error and the input of this function is ALREADY normalized, "
-                                     "this may be a logical bug, please consider to report it on github")
-    assert len(word2ph) == len(norm_text), ("If you get this error and the input of this function is ALREADY "
-                                            "normalized, this may be a logical bug, please "
-                                            "consider to report it on github")
-    return word2ph
+    assert sum(word2phonemes) == len(sc), (
+        "If you get this error and the input of this function is ALREADY normalized, "
+        "this may be a logical bug, please consider to report it on github\n"
+        f"{word2phonemes}, {sc}\n"
+        f"{sum(word2phonemes)}, {len(sc)}\n"
+        f"{norm_text}"
+        )
+    assert len(word2phonemes) == len(norm_text), ("If you get this error and the input of this function is ALREADY "
+                                                  "normalized, this may be a logical bug, please "
+                                                  "consider to report it on github\n"
+                                                  f"{word2phonemes}, {len(norm_text)}"
+                                                  )
+    assert min(word2phonemes) >= 0, ("ERR minimum less than 0.If you get this error and the "
+                                     "input of this function is ALREADY "
+                                     "normalized, this may be a logical bug, please "
+                                     "consider to report it on github"
+                                     )
+    return word2phonemes
 
 
 def swap(a, b):
@@ -399,13 +440,13 @@ _CURRENCY_MAP = {"$": "ドル", "¥": "円", "£": "ポンド", "€": "ユー�
 
 
 def japanese_convert_numbers_to_words(text: str) -> str:
-    res = text
+    result = text
     # res = _NUMBER_WITH_SEPARATOR_RX.sub(lambda m: m[0].replace(",", ""), text)
     # res = _CURRENCY_RX.sub(lambda m: m[2] + _CURRENCY_MAP.get(m[1], m[1]), res)
-    for x in _CURRENCY_MAP.keys():
-        res = res.replace(x, _CURRENCY_MAP[x])
+    for x2 in _CURRENCY_MAP.keys():
+        result = result.replace(x2, _CURRENCY_MAP[x2])
     # res = _NUMBER_RX.sub(lambda m: num2words(m[0], lang="ja"), res)
-    return res
+    return result
 
 
 rep_map = {
@@ -418,7 +459,8 @@ rep_map = {
     "\n": ".",
     "·": ",",
     "、": ",",
-    "...": "…",
+    "…": "...",
+    "―": "-",
 }
 
 
@@ -427,23 +469,34 @@ def replace_punctuation(text):
     replaced_text = text
     # replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
 
-    for x in rep_map.keys():
-        replaced_text = replaced_text.replace(x, rep_map[x])
+    for x2 in rep_map.keys():
+        replaced_text = replaced_text.replace(x2, rep_map[x2])
     return replaced_text
 
 
 def text_normalize(text):
-    res = unicodedata.normalize("NFKC", text)
-    res = japanese_convert_numbers_to_words(res)
+    result = unicodedata.normalize("NFKC", text)
+    result = japanese_convert_numbers_to_words(result)
     # res = "".join([i for i in res if is_japanese_character(i)])
-    res = replace_punctuation(res)
-    return res
+    result = replace_punctuation(result)
+    return result.replace('\n', '').replace(" ", "")
 
 
 if __name__ == '__main__':
     # demo for matching, designed to be visual
-    sentence = 'わたしはマスターの所有物ですので。勝手に売買するのは違法です'
+    # sentence = open('filelists/train.list', encoding='utf-8').readlines()[721].split('|')[3]
+    # print(sentence)
+    sentence = 'っ――!'
+    # sentence = '1...!'
     norm = text_normalize(sentence)
+    ers = []
+    # for cnt, x in enumerate(open('fl.txt', encoding='utf-8').readlines()):
+    #     try:
+    #         g2p_with_accent_info(text_normalize(x.split('|')[3].strip('\n')))
+    #     except AssertionError as err:
+    #         ers.append((err, x.split("|")[3], cnt))
+    # for x in ers:
+    #     print(f"{x[1]} -> {str(x[0])}:\n{x[2]}")
     print(g2p_with_accent_info(text_normalize(sentence)))
     print("word2ph:", calculate_word2ph(text_normalize(sentence)))
     sa_, word2ph = g2p_with_accent_info(text_normalize(sentence))
@@ -514,8 +567,6 @@ if __name__ == '__main__':
     sbt = list(sbt)
     mi = 0
     x = 0
-    print(sat)
-    print(sbt)
     while x < len(sat) - 1:
         if sat[x] == sbt[x] == ' ' and (sbt[x - 1] == sbt[x + 1] == ' ') and (sat[x - 1] == sat[x + 1] == ' '):
             sat.pop(x)
