@@ -1,12 +1,9 @@
 # 测试中(排查与修正问题)
 
-
-
-目前阶段目标：焊接情感embedding(完成), 重构cleaner(完成), 字符音节匹配算法(高完成度)
-
-(还是不乱立flag了)
+目前仓库代码尚未更新，最新进度正在进行测试与实验，所以仓库代码存在若干问题，只能练出炉渣
 
 目前已经实测确认的事情：
+
 1.纯phoneme sequence 可行性:是
 
 2.phoneme sequence+emotion embeddings 可行性:是
