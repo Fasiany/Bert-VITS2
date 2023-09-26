@@ -6,6 +6,17 @@
 
 (还是不乱立flag了)
 
+目前已经实测确认的事情：
+1.纯phoneme sequence 可行性:是
+
+2.phoneme sequence+emotion embeddings 可行性:是
+
+3.phoneme sequence+bert feature 可行性:待观察
+
+4.phoneme sequence+bert feature+emotion embedddings 可行性:待充分实验
+
+(估计这个项目还得花上不少时间吧)
+
 一定要确保句子包含的所有特殊符号都在symbols.py内，否则匹配算法可能会炸。特别是各种空格与全角符号(一般来说只影响预处理，因为炸了的不会进训练数据集)
 
 如果句子里面只有一堆标点符号没有可发音的文字匹配算法也有可能会炸
