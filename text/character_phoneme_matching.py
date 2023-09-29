@@ -111,11 +111,6 @@ def g2p_with_accent_info(norm_text: str):
     returns phonemes sequence with accent information and pause flags and the word2ph sequence of it
     """
     # https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html#10.2-Tacotron-2-%E3%82%92%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E9%81%A9%E7%94%A8%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E5%A4%89%E6%9B%B4
-    # 以重音短语分组作为分割 ' '
-    # a1为重音音节距离(降) ']'
-    # 重音短语起始第二个音节组为升 '/'
-    # e3:前一个音节组词性(1=疑问) '?'
-    # 这个函数需要使用word2ph信息
     fl = pjt.extract_fullcontext(norm_text)
     n = len(fl)
     result = []
@@ -175,8 +170,9 @@ def g2p_with_accent_info(norm_text: str):
         a2_next = numeric_feature_by_regex(r"\+(\d+)\+", fl[current + 1])
 
         if a3 == 1 and a2_next == 1:
-            result.append("#")
-            new_word2ph[rcm[current + 1 - gof]] += 1
+            pass
+            # result.append("#")
+            # new_word2ph[rcm[current + 1 - gof]] += 1
         elif a1 == 0 and a2_next == a2 + 1 and a2 != f1:
             result.append("]")
             new_word2ph[rcm[current + 1 - gof]] += 1
@@ -189,7 +185,6 @@ def g2p_with_accent_info(norm_text: str):
             while new_word2ph[i] < 2:
                 i -= 1
             new_word2ph[i] -= 1
-            # new_word2ph[-2] -= 1
             new_word2ph[-1] += 1
         except IndexError:
             pass
@@ -411,7 +406,6 @@ def calculate_word2ph(norm_text: str) -> list:
                 available -= 1
                 total -= 1
         word2phonemes += distribute_phonemes(available, match_failures[1] - match_failures[0] + 1)
-    # print(word2ph, sum(word2ph), len(sc))
     assert sum(word2phonemes) == len(sc), (
         "If you get this error and the input of this function is ALREADY normalized, "
         "this may be a logical bug, please consider to report it on github\n"
@@ -441,11 +435,8 @@ _CURRENCY_MAP = {"$": "ドル", "¥": "円", "£": "ポンド", "€": "ユー�
 
 def japanese_convert_numbers_to_words(text: str) -> str:
     result = text
-    # res = _NUMBER_WITH_SEPARATOR_RX.sub(lambda m: m[0].replace(",", ""), text)
-    # res = _CURRENCY_RX.sub(lambda m: m[2] + _CURRENCY_MAP.get(m[1], m[1]), res)
     for x2 in _CURRENCY_MAP.keys():
         result = result.replace(x2, _CURRENCY_MAP[x2])
-    # res = _NUMBER_RX.sub(lambda m: num2words(m[0], lang="ja"), res)
     return result
 
 
@@ -465,9 +456,7 @@ rep_map = {
 
 
 def replace_punctuation(text):
-    # pattern = re.compile("|".join(re.escape(p) for p in rep_map.keys()))
     replaced_text = text
-    # replaced_text = pattern.sub(lambda x: rep_map[x.group()], text)
 
     for x2 in rep_map.keys():
         replaced_text = replaced_text.replace(x2, rep_map[x2])
@@ -477,7 +466,6 @@ def replace_punctuation(text):
 def text_normalize(text):
     result = unicodedata.normalize("NFKC", text)
     result = japanese_convert_numbers_to_words(result)
-    # res = "".join([i for i in res if is_japanese_character(i)])
     result = replace_punctuation(result)
     return result.replace('\n', '').replace(" ", "")
 

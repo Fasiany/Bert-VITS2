@@ -21,10 +21,10 @@ import commons
 import utils
 from models import SynthesizerTrn
 from text.symbols import symbols
-from text import cleaned_text_to_sequence, get_bert
+from text import cleaned_text_to_sequence, get_bert, get_bert_train
 import gradio as gr
 import webbrowser
-from text.japanese import g2p, text_normalize
+from text.japanese import g2p, text_normalize, tokenizer
 
 net_g = None
 
@@ -38,64 +38,59 @@ else:
 
 
 def get_text(text, word2ph, phone, tone, language_str, wav_path):
-    phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
-    if hps.data.add_blank:
-        phone = commons.intersperse(phone, 0)
-        tone = commons.intersperse(tone, 0)
-        language = commons.intersperse(language, 0)
-        for i in range(len(word2ph)):
-            word2ph[i] = word2ph[i] * 2
-        word2ph[0] += 1
-    # bert_path = wav_path.replace(".wav", ".bert.pt")
-    emotion_path = wav_path.replace(".wav", ".emo.npy")
-    # the length of bert input and phonemes will no longer match since g2p is updated.
-    # They are more likely not to be identical
-    # but the difference should not be huge, so continue anyway.
-    # try:
-    #     bert = torch.load(bert_path)
-        # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}"
-    # except:
-    bert = get_bert(text, word2ph, language_str, "cuda")
-        # torch.save(bert, bert_path)
-        # assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}, {text}, {word2ph}"
-    assert language_str == 'JP', "This project only supports Japanese for now."
-    emotion = torch.FloatTensor(np.load(emotion_path))
-    ja_bert = bert
-    # dimension info of bert:[1024, len(phonemes)]
-    # assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
-    #     ja_bert.shape,
-    #     len(phone),
-    #     len(word2ph),
-    #     word2ph,
-    #     text,
-    # )}"""
-    phone = torch.LongTensor(phone)
-    tone = torch.LongTensor(tone)
-    language = torch.LongTensor(language)
-    return emotion, ja_bert, phone, tone, language
+        phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
+        if hps.data.add_blank:
+            phone = commons.intersperse(phone, 0)
+            tone = commons.intersperse(tone, 0)
+            language = commons.intersperse(language, 0)
+            nw = []
+            for i in range(len(word2ph)):
+                nw.append(word2ph[i] * 2)
+            nw[0] += 1
+            word2ph = nw
+        emotion_path = wav_path.replace(".wav", ".emo.npy")
+        bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
+        bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+        assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
+        assert language_str == 'JP', "This project only supports Japanese for now."
+        emotion = torch.FloatTensor(np.load(emotion_path))
+        # emotion = torch.zeros(1024*[0])
+        ja_bert = bert
+        # dimension info of bert:[1024, len(phonemes)]
+        assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+            ja_bert.shape,
+            len(phone),
+            len(word2ph),
+            word2ph,
+            text,
+        )}"""
+        phone = torch.LongTensor(phone)
+        tone = torch.LongTensor(tone)
+        language = torch.LongTensor(language)
+        return emotion, ja_bert, phone, tone, language
 
 
-def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language, emo):
+def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language, emo, emo_all_zero=False):
     global net_g
     phones, tones, word2ph = g2p(text_normalize(text))
-    print("infer:", phones)
+    print(phones)
     emotion, ja_bert, phones, tones, lang_ids = get_text(text, word2ph, phones, tones, language, emo)
+    print("infer:", phones)
+    print(phones)
+    print(tones)
+    print(lang_ids)
     with torch.no_grad():
         x_tst = phones.to(device).unsqueeze(0)
         tones = tones.to(device).unsqueeze(0)
         lang_ids = lang_ids.to(device).unsqueeze(0)
+        if emo_all_zero:
+            emotion = torch.FloatTensor([0] * 1024)
         emotion = emotion.to(device).unsqueeze(0)
+        # ja_bert = torch.zeros(ja_bert.shape)
         ja_bert = ja_bert.to(device).unsqueeze(0)
         x_tst_lengths = torch.LongTensor([phones.size(0)]).to(device)
         del phones
         speakers = torch.LongTensor([hps.data.spk2id[sid]]).to(device)
-        dim_mx = max([ja_bert.shape[2], x_tst.shape[1]])
-        if ja_bert.shape[2] < dim_mx:
-            ja_bert = torch.cat((ja_bert, torch.zeros(ja_bert.shape[0], ja_bert.shape[1], dim_mx-ja_bert.shape[2]).to('cuda')), dim=2)
-        elif x_tst.shape[1] < dim_mx:
-            x_tst = torch.cat((x_tst, torch.zeros(1, dim_mx-x_tst.shape[1]).to('cuda')), dim=1).long()
-            lang_ids = torch.cat((lang_ids, torch.zeros(1, dim_mx - lang_ids.shape[1]).to('cuda')), dim=1).long()
-            tones = torch.cat((tones, torch.zeros(1, dim_mx - tones.shape[1]).to('cuda')), dim=1).long()
         print("length of input：", x_tst.shape, ja_bert.shape, lang_ids
               .shape, emotion.shape, x_tst_lengths.shape, tones.shape)
         audio = (
@@ -103,15 +98,13 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
                 x_tst,
                 x_tst_lengths,
                 speakers,
-                tones,
-                lang_ids,
-                emotion,
+                # emotion,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
                 noise_scale_w=noise_scale_w,
                 length_scale=length_scale,
-            )[0][0, 0]
+            )[0][0, 0] #                 emotion, ja_bert,
             .data.cpu()
             .float()
             .numpy()
@@ -138,14 +131,16 @@ def tts_fn(
 
 
 if __name__ == "__main__":
+    P = 'MUTI_BERT_ONLY'
+    S = "15000"
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-m", "--model", default="./logs/ATRI/G_16000.pth", help="path of your model"
+        "-m", "--model", default=f"./logs/{P}/G_{S}.pth", help="path of your model"
     )
     parser.add_argument(
         "-c",
         "--config",
-        default="./configs/config.json",
+        default="./configs/config_P.json",
         help="path of your config file",
     )
     parser.add_argument(
@@ -185,7 +180,9 @@ if __name__ == "__main__":
     speaker_ids = hps.data.spk2id
     speakers = list(speaker_ids.keys())
     languages = ["ZH", "JP"]
-    ad = infer('わたしはマスターの所有物ですので。勝手に売買するのは違法です', 0.2, 0.6, 0.8, 1, 'AT', 'JP', 'ATRI_VD_WAV_48K/ATR_b101_012.wav')
+    FILL_EMO_WITH_ZEROS = True
+    # FILL_EMO_WITH_ZEROS = False
+    ad = infer("あー、渡れないんですね。早速わたしの出番です！", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav', FILL_EMO_WITH_ZEROS)
     open("temp.wav", "wb").write(ipd.Audio(ad, rate=hps.data.sampling_rate, normalize=False).data)
     exit()
     with gr.Blocks() as app:

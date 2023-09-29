@@ -222,7 +222,6 @@ def run():
     scaler = GradScaler(enabled=hps.train.fp16_run)
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
-        print("run epoch", epoch)
         if rank == 0:
             train_and_evaluate(
                 rank,
@@ -280,8 +279,6 @@ def train_and_evaluate(
         y,
         y_lengths,
         speakers,
-        tone,
-        language,
         emotion,
         ja_bert,
     ) in tqdm(enumerate(train_loader)):
@@ -301,9 +298,11 @@ def train_and_evaluate(
             rank, non_blocking=True
         )
         speakers = speakers.cuda(rank, non_blocking=True)
-        tone = tone.cuda(rank, non_blocking=True)
-        language = language.cuda(rank, non_blocking=True)
+        # emotion = torch.FloatTensor(1024*[0])
         emotion = emotion.cuda(rank, non_blocking=True)
+        # torch.zeros(1, 2).
+        # ja_bert = torch.zeros(ja_bert.shape)
+        assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert)
         ja_bert = ja_bert.cuda(rank, non_blocking=True)
 
         with autocast(enabled=hps.train.fp16_run):
@@ -322,11 +321,9 @@ def train_and_evaluate(
                 spec,
                 spec_lengths,
                 speakers,
-                tone,
-                language,
-                emotion,
                 ja_bert,
-            )
+            ) #                 emotion,
+                # ja_bert,
             mel = spec_to_mel_torch(
                 spec,
                 hps.data.filter_length,
@@ -516,8 +513,6 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             y,
             y_lengths,
             speakers,
-            tone,
-            language,
             emotion,
             ja_bert,
         ) in enumerate(eval_loader):
@@ -525,23 +520,22 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             spec, spec_lengths = spec.cuda(), spec_lengths.cuda()
             y, y_lengths = y.cuda(), y_lengths.cuda()
             speakers = speakers.cuda()
+            # emotion = torch.FloatTensor([0] * 1024)
             emotion = emotion.cuda()
+            # ja_bert = torch.zeros(ja_bert.shape)
+            assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert)
             ja_bert = ja_bert.cuda()
-            tone = tone.cuda()
-            language = language.cuda()
             for use_sdp in [True, False]:
                 y_hat, attn, mask, *_ = generator.module.infer(
                     x,
                     x_lengths,
                     speakers,
-                    tone,
-                    language,
-                    emotion,
                     ja_bert,
                     y=spec,
                     max_len=1000,
                     sdp_ratio=0.0 if not use_sdp else 1.0,
-                )
+                ) #                     emotion,
+                   # ja_bert,
                 y_hat_lengths = mask.sum([1, 2]).long() * hps.data.hop_length
 
                 mel = spec_to_mel_torch(

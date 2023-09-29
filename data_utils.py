@@ -95,7 +95,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
 
         spec, wav = self.get_audio(audiopath)
         sid = torch.LongTensor([int(self.spk_map[sid])])
-        return (phones, spec, wav, sid, tone, language, emotion, ja_bert)
+        return phones, spec, wav, sid, emotion, ja_bert
 
     def get_audio(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
@@ -139,6 +139,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         return spec, audio_norm
 
     def get_text(self, text, word2ph, phone, tone, language_str, wav_path):
+        # print(f"Translating:{text}")
         phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
         if self.add_blank:
             phone = commons.intersperse(phone, 0)
@@ -159,11 +160,11 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
             torch.save(bert, bert_path)
             bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
+            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, \n{text}\n{word2ph}"
         assert language_str == 'JP', "This project only supports Japanese for now."
         emotion = torch.FloatTensor(np.load(emotion_path))
         ja_bert = bert
-        # dimension info of bert:[1024, len(phonemes)]
+        # dimension info of bert:[768, len(phonemes)]
         assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
             ja_bert.shape,
             len(phone),
@@ -174,6 +175,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
+        # emotion = torch.FloatTensor(1024 * [0])
         return emotion, ja_bert, phone, tone, language
 
     def get_sid(self, sid):
@@ -205,7 +207,6 @@ class TextAudioSpeakerCollate:
         )
 
         max_text_len = max([len(x[0]) for x in batch])
-        # [batch[ids_sorted_decreasing[i]][7].size(1) for i in range(len(ids_sorted_decreasing))] +
         max_spec_len = max([x[1].size(1) for x in batch])
         max_wav_len = max([x[2].size(1) for x in batch])
 
@@ -218,7 +219,7 @@ class TextAudioSpeakerCollate:
         tone_padded = torch.LongTensor(len(batch), max_text_len)
         language_padded = torch.LongTensor(len(batch), max_text_len)
         emotion_padded = torch.FloatTensor(len(batch), 1024)
-        ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
+        ja_bert_padded = torch.FloatTensor(len(batch), 768, max_text_len)
         # Notice that Japanese and Chinese bert features have the same dimension info
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
@@ -247,16 +248,10 @@ class TextAudioSpeakerCollate:
 
             sid[i] = row[3]
 
-            tone = row[4]
-            tone_padded[i, : tone.size(0)] = tone
-
-            language = row[5]
-            language_padded[i, : language.size(0)] = language
-
-            emotion = row[6]
+            emotion = row[4]
             emotion_padded[i, :] = emotion
 
-            ja_bert = row[7]
+            ja_bert = row[5]
             ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
 
         return (
@@ -267,8 +262,6 @@ class TextAudioSpeakerCollate:
             wav_padded,
             wav_lengths,
             sid,
-            tone_padded,
-            language_padded,
             emotion_padded,
             ja_bert_padded,
         )

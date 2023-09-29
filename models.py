@@ -340,8 +340,7 @@ class TextEncoder(nn.Module):
         self.language_emb = nn.Embedding(num_languages, hidden_channels)
         nn.init.normal_(self.language_emb.weight, 0.0, hidden_channels**-0.5)
         self.emo_proj = nn.Linear(1024, hidden_channels)
-        self.bert_proj = nn.Conv1d(1024, hidden_channels, 1)
-        self.ja_bert_proj = nn.Conv1d(1024, hidden_channels, 1)
+        self.ja_bert_proj = nn.Conv1d(768, hidden_channels, 1)
 
         self.encoder = attentions.Encoder(
             hidden_channels,
@@ -354,18 +353,14 @@ class TextEncoder(nn.Module):
         )
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
-    def forward(self, x, x_lengths, tone, language, emo, ja_bert, g=None):
-        emb_x = self.emb(x)
-        emo_emb = self.emo_proj(emo.unsqueeze(1))
+    def forward(self, x, x_lengths, ja_bert, g=None):
+        emb_x = self.emb(x) # emo, ja_bert,
+        # emo_emb = self.emo_proj(emo.unsqueeze(1))
         ja_bert_emb = self.ja_bert_proj(ja_bert).transpose(1, 2)
-        emb_tone = self.tone_emb(tone)
-        emb_lan = self.language_emb(language)
 
         x = (
             emb_x
-            + emb_tone
-            + emb_lan
-            + emo_emb
+            # + emo_emb
             + ja_bert_emb
         ) * math.sqrt(
             self.hidden_channels
@@ -867,14 +862,17 @@ class SynthesizerTrn(nn.Module):
         else:
             self.ref_enc = ReferenceEncoder(spec_channels, gin_channels)
 
-    def forward(self, x, x_lengths, y, y_lengths, sid, tone, language, emo, ja_bert):
+    def forward(self, x, x_lengths, y, y_lengths, sid, bert): # , emo, ja_bert
+        # 改动:仅输入音节信息
+        # 推测:输入的bert信息存在问题
+        # 实验结果：输入sequence accent phrase flag的锅
         if self.n_speakers > 0:
             g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = self.ref_enc(y.transpose(1, 2)).unsqueeze(-1)
         x, m_p, logs_p, x_mask = self.enc_p(
-            x, x_lengths, tone, language, emo, ja_bert, g=g
-        )
+            x, x_lengths, bert, g=g
+        ) # emo, ja_bert,
         z, m_q, logs_q, y_mask = self.enc_q(y, y_lengths, g=g)
         z_p = self.flow(z, y_mask, g=g)
 
@@ -946,17 +944,15 @@ class SynthesizerTrn(nn.Module):
         x,
         x_lengths,
         sid,
-        tone,
-        language,
-        emo,
-        ja_bert,
+        bert,
         noise_scale=0.667,
         length_scale=1,
         noise_scale_w=0.8,
         max_len=None,
         sdp_ratio=0,
         y=None,
-    ):
+    ): #         emo,
+        # ja_bert,
         # x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths, tone, language, emo)
         # g = self.gst(y)
         if self.n_speakers > 0:
@@ -964,8 +960,8 @@ class SynthesizerTrn(nn.Module):
         else:
             g = self.ref_enc(y.transpose(1, 2)).unsqueeze(-1)
         x, m_p, logs_p, x_mask = self.enc_p(
-            x, x_lengths, tone, language, emo, ja_bert, g=g
-        )
+            x, x_lengths, bert,  g=g
+        ) # emo, ja_bert,
         logw = self.sdp(x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w) * (
             sdp_ratio
         ) + self.dp(x, x_mask, g=g) * (1 - sdp_ratio)
