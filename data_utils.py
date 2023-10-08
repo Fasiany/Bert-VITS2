@@ -139,7 +139,6 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         return spec, audio_norm
 
     def get_text(self, text, word2ph, phone, tone, language_str, wav_path):
-        # print(f"Translating:{text}")
         phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
         if self.add_blank:
             phone = commons.intersperse(phone, 0)
