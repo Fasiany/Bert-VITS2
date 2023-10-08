@@ -10,12 +10,12 @@ torchvision
 Unidecode
 amfm_decompy
 jieba
-transformers==4.25.1
+transformers
 pypinyin
 cn2an
 gradio
 av
-pyopenjtalk
+mecab-python3
 loguru
 unidic-lite
 cmudict

@@ -6,7 +6,7 @@ from typing import Optional
 from tqdm import tqdm
 import click
 from text.cleaner import clean_text
-from text.japanese import process_bert
+# from text.japanese import process_bert
 from emotion_extract import preprocess_one
 from text.japanese_bert import tokenizer
 
@@ -47,7 +47,7 @@ def main(
             fae = False
             try:
                 utt, spk, language, text = line.strip().split("|")
-                process_bert(text, utt.replace(".wav", ".bert.pt"))
+                # process_bert(text, utt.replace(".wav", ".bert.pt"))
                 preprocess_one(utt)
                 norm_text, phones, tones, word2ph = clean_text(text, language)
                 w2p = word2ph

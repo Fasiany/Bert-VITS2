@@ -1,7 +1,7 @@
 import sys
 
 import torch
-from transformers import BertModel, BertJapaneseTokenizer
+from transformers import BertJapaneseTokenizer, AutoModelForMaskedLM as BertModel
 
 # set this variable to the path of bert model
 BERT = "/home/zhang/PycharmProjects/Bert-VITS2_E/bert/bert-base-japanese-v3"
@@ -26,8 +26,7 @@ def get_bert_feature(text, word2ph=None, device=None):  # arg device is actually
         word2ph = []
     with torch.no_grad():
         inputs = tokenizer(text, return_tensors="pt")
-        for i in inputs:
-            inputs[i] = inputs[i].to(device_g)
+        inputs = inputs.to(device_g)
         res = model(**inputs, output_hidden_states=True)
-        res = res['hidden_states'][BERT_LAYER]
-    return res[0]
+        res = torch.cat(res['hidden_states'][BERT_LAYER:BERT_LAYER+1], -1)
+    return res[0].cpu()

@@ -2,10 +2,12 @@
 # compatible with Julius https://github.com/julius-speech/segmentation-kit
 import unicodedata
 
+import pyopenjtalk
 import torch
 from transformers import AutoTokenizer
 
-from text.character_phoneme_matching import g2p_with_accent_info
+from text.character_phoneme_matching import g2p_with_accent_info, calculate_word2ph
+from text.symbols import symbols
 from text.japanese_bert import get_bert_feature, BERT  # BERT is the path to the model
 
 _CURRENCY_MAP = {"$": "ドル", "¥": "円", "£": "ポンド", "€": "ユーロ"}
@@ -53,7 +55,18 @@ def text_normalize(text):
 tokenizer = AutoTokenizer.from_pretrained(BERT)
 
 
-def g2p(norm_text):
+def g2p(norm_text, apply_accent_info=False):
+    if apply_accent_info:
+        return g2p_a(norm_text)
+    phs = pyopenjtalk.g2p(norm_text).split(" ")
+    word2ph = calculate_word2ph(norm_text)
+    phs = ['_'] + phs + ['_']
+    tns = [0 for _ in phs]
+    word2ph = [1] + word2ph + [1]
+    return phs, tns, word2ph
+
+
+def g2p_a(norm_text):
     phs, word2ph = g2p_with_accent_info(norm_text)
     phonemes = ['_'] + phs + ['_']
     tones = [0 for _ in phonemes]

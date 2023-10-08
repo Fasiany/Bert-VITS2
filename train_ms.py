@@ -280,6 +280,8 @@ def train_and_evaluate(
         y_lengths,
         speakers,
         emotion,
+        tone,
+        lan,
         ja_bert,
     ) in tqdm(enumerate(train_loader)):
         if net_g.module.use_noise_scaled_mas:
@@ -302,10 +304,15 @@ def train_and_evaluate(
         emotion = emotion.cuda(rank, non_blocking=True)
         # torch.zeros(1, 2).
         # ja_bert = torch.zeros(ja_bert.shape)
-        assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert)
+        # print(f"SHAPE:{zh_bert.unsqueeze(0).shape}, {ja_bert.shape}")
+        assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert) # check all zero
         ja_bert = ja_bert.cuda(rank, non_blocking=True)
+        lan = lan.cuda(rank, non_blocking=True)
+        tone = tone.cuda(rank, non_blocking=True)
+        # tns = torch.zeros(x.shape).cuda(rank, non_blocking=True)
 
         with autocast(enabled=hps.train.fp16_run):
+            # print(f"Dim while training:{x.shape}, {x_lengths.shape}, {speakers.shape}, {ja_bert.shape}")
             (
                 y_hat,
                 l_length,
@@ -321,6 +328,9 @@ def train_and_evaluate(
                 spec,
                 spec_lengths,
                 speakers,
+                tone,
+                lan,
+                emotion,
                 ja_bert,
             ) #                 emotion,
                 # ja_bert,
@@ -514,14 +524,19 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             y_lengths,
             speakers,
             emotion,
+            tone,
+            lan,
             ja_bert,
         ) in enumerate(eval_loader):
             x, x_lengths = x.cuda(), x_lengths.cuda()
             spec, spec_lengths = spec.cuda(), spec_lengths.cuda()
             y, y_lengths = y.cuda(), y_lengths.cuda()
+            lan = lan.cuda()
             speakers = speakers.cuda()
             # emotion = torch.FloatTensor([0] * 1024)
             emotion = emotion.cuda()
+            tone = tone.cuda()
+            lan = lan.cuda()
             # ja_bert = torch.zeros(ja_bert.shape)
             assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert)
             ja_bert = ja_bert.cuda()
@@ -530,6 +545,9 @@ def evaluate(hps, generator, eval_loader, writer_eval):
                     x,
                     x_lengths,
                     speakers,
+                    tone,
+                    lan,
+                    emotion,
                     ja_bert,
                     y=spec,
                     max_len=1000,

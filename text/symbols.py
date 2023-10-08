@@ -7,7 +7,7 @@ OOR = 'T'
 num_zh_tones = 6
 
 # japanese
-ja_symbols = list('AEINOQUabdefghijklmnoprstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#') + ['ky'] + ['gy'] + ['ry'] + ['hy'] + ['T']
+ja_symbols = list('AEINOQUabdefghijklmnoprqstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#') + ['ky'] + ['gy'] + ['ry'] + ['hy'] + ['T'] + ['ts'] + ['sh'] + ['ch', 'by', 'ny', 'cl', 'py', 'my', 'dy']
 num_ja_tones = 1
 
 

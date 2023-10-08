@@ -6,7 +6,7 @@ from typing import List, Any
 
 import pyopenjtalk as pjt
 
-from text.symbols import punctuation
+from text.symbols import punctuation, symbols
 
 
 def LIS_solver(seq: List[int]) -> int:

@@ -50,14 +50,16 @@ def get_bert_train(norm_text, bert, word2ph, tokenizer):
     # [3, 4, 6, 6, 4, 12, 6, 6, 6, 6, 6, 4, 6, 6, 6, 6, 4, 2, 6, 10, 4, 10, 4, 4, 4, 0, 0, 0, 0, 0, 0, 2, 4, 6, 4, 2, 8, 4, 8, 4, 4, 6, 2, 4, 2, 2, 2, 6, 2]
     # print(f'processing bert with:{w2p}\n{len(w2p)}\n{word2ph}')
     for i in range(len(w2p)):
-        repeat_feature = bert[i].unsqueeze(0).repeat(w2p[i], 1)
+        if not w2p[i]:
+            continue
+        repeat_feature = bert[i].repeat(w2p[i], 1)
         phone_level_feature.append(repeat_feature)
 
     phone_level_feature = torch.cat(phone_level_feature, dim=0)
     return phone_level_feature.T
 
 
-def get_bert(norm_text, word2ph, language, device, tokenizer):
+def get_bert(norm_text, word2ph, language, device, tokenizer=None):
     from .chinese_bert import get_bert_feature as zh_bert
     from .english_bert_mock import get_bert_feature as en_bert
     from .japanese_bert import get_bert_feature as jp_bert

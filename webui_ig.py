@@ -99,6 +99,8 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
                 x_tst_lengths,
                 speakers,
                 # emotion,
+                tones,
+                lang_ids,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
@@ -132,7 +134,7 @@ def tts_fn(
 
 if __name__ == "__main__":
     P = 'MUTI_BERT_ONLY'
-    S = "15000"
+    S = "8000"
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-m", "--model", default=f"./logs/{P}/G_{S}.pth", help="path of your model"
@@ -182,7 +184,7 @@ if __name__ == "__main__":
     languages = ["ZH", "JP"]
     FILL_EMO_WITH_ZEROS = True
     # FILL_EMO_WITH_ZEROS = False
-    ad = infer("あー、渡れないんですね。早速わたしの出番です！", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav', FILL_EMO_WITH_ZEROS)
+    ad = infer("1, 2, 3, それは?", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav', FILL_EMO_WITH_ZEROS)
     open("temp.wav", "wb").write(ipd.Audio(ad, rate=hps.data.sampling_rate, normalize=False).data)
     exit()
     with gr.Blocks() as app:
