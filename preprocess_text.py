@@ -29,14 +29,14 @@ from text.japanese_bert import tokenizer
 @click.option("--max-val-total", default=8)
 @click.option("--clean/--no-clean", default=True)
 def main(
-    transcription_path: str,
-    cleaned_path: Optional[str],
-    train_path: str,
-    val_path: str,
-    config_path: str,
-    val_per_spk: int,
-    max_val_total: int,
-    clean: bool,
+        transcription_path: str,
+        cleaned_path: Optional[str],
+        train_path: str,
+        val_path: str,
+        config_path: str,
+        val_per_spk: int,
+        max_val_total: int,
+        clean: bool,
 ):
     if cleaned_path is None:
         cleaned_path = transcription_path + ".cleaned"

@@ -3,6 +3,7 @@
 import sys, os
 import logging
 import IPython.display as ipd
+
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("markdown_it").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -34,40 +35,39 @@ if sys.platform == "darwin" and torch.backends.mps.is_available():
 else:
     device = "cuda"
 
-# TODO:update webui for its code was tested in previous environment
-
 
 def get_text(text, word2ph, phone, tone, language_str, wav_path):
-        phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
-        if hps.data.add_blank:
-            phone = commons.intersperse(phone, 0)
-            tone = commons.intersperse(tone, 0)
-            language = commons.intersperse(language, 0)
-            nw = []
-            for i in range(len(word2ph)):
-                nw.append(word2ph[i] * 2)
-            nw[0] += 1
-            word2ph = nw
-        emotion_path = wav_path.replace(".wav", ".emo.npy")
-        bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
-        bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
-        assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
-        assert language_str == 'JP', "This project only supports Japanese for now."
-        emotion = torch.FloatTensor(np.load(emotion_path))
-        # emotion = torch.zeros(1024*[0])
-        ja_bert = bert
-        # dimension info of bert:[1024, len(phonemes)]
-        assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
-            ja_bert.shape,
-            len(phone),
-            len(word2ph),
-            word2ph,
-            text,
-        )}"""
-        phone = torch.LongTensor(phone)
-        tone = torch.LongTensor(tone)
-        language = torch.LongTensor(language)
-        return emotion, ja_bert, phone, tone, language
+    phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
+    if hps.data.add_blank:
+        phone = commons.intersperse(phone, 0)
+        tone = commons.intersperse(tone, 0)
+        language = commons.intersperse(language, 0)
+        nw = []
+        for i in range(len(word2ph)):
+            nw.append(word2ph[i] * 2)
+        nw[0] += 1
+        word2ph = nw
+    emotion_path = wav_path.replace(".wav", ".emo.npy")
+    bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
+    bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+    assert bert.shape[-1] == len(
+        phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
+    assert language_str == 'JP', "This project only supports Japanese for now."
+    emotion = torch.FloatTensor(np.load(emotion_path))
+    # emotion = torch.zeros(1024*[0])
+    ja_bert = bert
+    # dimension info of bert:[1024, len(phonemes)]
+    assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
+        ja_bert.shape,
+        len(phone),
+        len(word2ph),
+        word2ph,
+        text,
+    )}"""
+    phone = torch.LongTensor(phone)
+    tone = torch.LongTensor(tone)
+    language = torch.LongTensor(language)
+    return emotion, ja_bert, phone, tone, language
 
 
 def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language, emo, emo_all_zero=False):
@@ -101,12 +101,13 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
                 # emotion,
                 tones,
                 lang_ids,
+                emotion,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
                 noise_scale_w=noise_scale_w,
                 length_scale=length_scale,
-            )[0][0, 0] #                 emotion, ja_bert,
+            )[0][0, 0]  # emotion, ja_bert,
             .data.cpu()
             .float()
             .numpy()
@@ -116,7 +117,7 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
 
 
 def tts_fn(
-    text, speaker, sdp_ratio, noise_scale, noise_scale_w, length_scale, language
+        text, speaker, sdp_ratio, noise_scale, noise_scale_w, length_scale, language
 ):
     with torch.no_grad():
         audio = infer(
@@ -184,7 +185,8 @@ if __name__ == "__main__":
     languages = ["ZH", "JP"]
     FILL_EMO_WITH_ZEROS = True
     # FILL_EMO_WITH_ZEROS = False
-    ad = infer("1, 2, 3, それは?", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav', FILL_EMO_WITH_ZEROS)
+    ad = infer("1, 2, 3, それは?", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav',
+               FILL_EMO_WITH_ZEROS)
     open("temp.wav", "wb").write(ipd.Audio(ad, rate=hps.data.sampling_rate, normalize=False).data)
     exit()
     with gr.Blocks() as app:

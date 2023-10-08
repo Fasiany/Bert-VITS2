@@ -63,7 +63,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         skipped = 0
         logger.info("Init dataset...")
         for _id, spk, language, text, phones, tone, word2ph in tqdm(
-            self.audiopaths_sid_text
+                self.audiopaths_sid_text
         ):
             audiopath = f"{_id}"
             if self.min_text_len <= len(phones) <= self.max_text_len:
@@ -102,8 +102,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         if sampling_rate != self.sampling_rate:
             raise ValueError(
                 "{} {} SR doesn't match target {} SR".format(filename,
-                    sampling_rate, self.sampling_rate
-                )
+                                                             sampling_rate, self.sampling_rate
+                                                             )
             )
         audio_norm = audio / self.max_wav_value
         audio_norm = audio_norm.unsqueeze(0)
@@ -154,12 +154,14 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         try:
             bert = torch.load(bert_path)
             bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
-            assert bert.shape[1] == len(phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}"
+            assert bert.shape[1] == len(
+                phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}"
         except:
             bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
             torch.save(bert, bert_path)
             bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
-            assert bert.shape[-1] == len(phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, \n{text}\n{word2ph}"
+            assert bert.shape[-1] == len(
+                phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, \n{text}\n{word2ph}"
         assert language_str == 'JP', "This project only supports Japanese for now."
         emotion = torch.FloatTensor(np.load(emotion_path))
         ja_bert = bert
@@ -287,13 +289,13 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     """
 
     def __init__(
-        self,
-        dataset,
-        batch_size,
-        boundaries,
-        num_replicas=None,
-        rank=None,
-        shuffle=True,
+            self,
+            dataset,
+            batch_size,
+            boundaries,
+            num_replicas=None,
+            rank=None,
+            shuffle=True,
     ):
         super().__init__(dataset, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
         self.lengths = dataset.lengths
@@ -331,8 +333,8 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             len_bucket = len(buckets[i])
             total_batch_size = self.num_replicas * self.batch_size
             rem = (
-                total_batch_size - (len_bucket % total_batch_size)
-            ) % total_batch_size
+                          total_batch_size - (len_bucket % total_batch_size)
+                  ) % total_batch_size
             num_samples_per_bucket.append(len_bucket + rem)
         return buckets, num_samples_per_bucket
 
@@ -361,21 +363,21 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             # add extra samples to make it evenly divisible
             rem = num_samples_bucket - len_bucket
             ids_bucket = (
-                ids_bucket
-                + ids_bucket * (rem // len_bucket)
-                + ids_bucket[: (rem % len_bucket)]
+                    ids_bucket
+                    + ids_bucket * (rem // len_bucket)
+                    + ids_bucket[: (rem % len_bucket)]
             )
 
             # subsample
-            ids_bucket = ids_bucket[self.rank :: self.num_replicas]
+            ids_bucket = ids_bucket[self.rank:: self.num_replicas]
 
             # batching
             for j in range(len(ids_bucket) // self.batch_size):
                 batch = [
                     bucket[idx]
                     for idx in ids_bucket[
-                        j * self.batch_size : (j + 1) * self.batch_size
-                    ]
+                               j * self.batch_size: (j + 1) * self.batch_size
+                               ]
                 ]
                 batches.append(batch)
 

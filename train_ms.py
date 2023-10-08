@@ -94,8 +94,8 @@ def run():
             collate_fn=collate_fn,
         )
     if (
-        "use_noise_scaled_mas" in hps.model.keys()
-        and hps.model.use_noise_scaled_mas is True
+            "use_noise_scaled_mas" in hps.model.keys()
+            and hps.model.use_noise_scaled_mas is True
     ):
         print("Using noise scaled MAS for VITS2")
         mas_noise_scale_initial = 0.01
@@ -105,8 +105,8 @@ def run():
         mas_noise_scale_initial = 0.0
         noise_scale_delta = 0.0
     if (
-        "use_duration_discriminator" in hps.model.keys()
-        and hps.model.use_duration_discriminator is True
+            "use_duration_discriminator" in hps.model.keys()
+            and hps.model.use_duration_discriminator is True
     ):
         print("Using duration discriminator for VITS2")
         net_dur_disc = DurationDiscriminator(
@@ -117,8 +117,8 @@ def run():
             gin_channels=hps.model.gin_channels if hps.data.n_speakers != 0 else 0,
         ).cuda(rank)
     if (
-        "use_spk_conditioned_encoder" in hps.model.keys()
-        and hps.model.use_spk_conditioned_encoder is True
+            "use_spk_conditioned_encoder" in hps.model.keys()
+            and hps.model.use_spk_conditioned_encoder is True
     ):
         if hps.data.n_speakers == 0:
             raise ValueError(
@@ -257,7 +257,7 @@ def run():
 
 
 def train_and_evaluate(
-    rank, epoch, hps, nets, optims, schedulers, scaler, loaders, logger, writers
+        rank, epoch, hps, nets, optims, schedulers, scaler, loaders, logger, writers
 ):
     net_g, net_d, net_dur_disc = nets
     optim_g, optim_d, optim_dur_disc = optims
@@ -274,22 +274,22 @@ def train_and_evaluate(
     if net_dur_disc is not None:
         net_dur_disc.train()
     for batch_idx, (
-        x,
-        x_lengths,
-        spec,
-        spec_lengths,
-        y,
-        y_lengths,
-        speakers,
-        emotion,
-        tone,
-        lan,
-        ja_bert,
+            x,
+            x_lengths,
+            spec,
+            spec_lengths,
+            y,
+            y_lengths,
+            speakers,
+            emotion,
+            tone,
+            lan,
+            ja_bert,
     ) in tqdm(enumerate(train_loader)):
         if net_g.module.use_noise_scaled_mas:
             current_mas_noise_scale = (
-                net_g.module.mas_noise_scale_initial
-                - net_g.module.noise_scale_delta * global_step
+                    net_g.module.mas_noise_scale_initial
+                    - net_g.module.noise_scale_delta * global_step
             )
             net_g.module.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
         x, x_lengths = x.cuda(rank, non_blocking=True), x_lengths.cuda(
@@ -307,7 +307,7 @@ def train_and_evaluate(
         # torch.zeros(1, 2).
         # ja_bert = torch.zeros(ja_bert.shape)
         # print(f"SHAPE:{zh_bert.unsqueeze(0).shape}, {ja_bert.shape}")
-        assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert) # check all zero
+        assert not torch.equal(torch.zeros(ja_bert.shape), ja_bert)  # check all zero
         ja_bert = ja_bert.cuda(rank, non_blocking=True)
         lan = lan.cuda(rank, non_blocking=True)
         tone = tone.cuda(rank, non_blocking=True)
@@ -334,8 +334,8 @@ def train_and_evaluate(
                 lan,
                 emotion,
                 ja_bert,
-            ) #                 emotion,
-                # ja_bert,
+            )  # emotion,
+            # ja_bert,
             mel = spec_to_mel_torch(
                 spec,
                 hps.data.filter_length,
@@ -518,17 +518,17 @@ def evaluate(hps, generator, eval_loader, writer_eval):
     print("Evaluating ...")
     with torch.no_grad():
         for batch_idx, (
-            x,
-            x_lengths,
-            spec,
-            spec_lengths,
-            y,
-            y_lengths,
-            speakers,
-            emotion,
-            tone,
-            lan,
-            ja_bert,
+                x,
+                x_lengths,
+                spec,
+                spec_lengths,
+                y,
+                y_lengths,
+                speakers,
+                emotion,
+                tone,
+                lan,
+                ja_bert,
         ) in enumerate(eval_loader):
             x, x_lengths = x.cuda(), x_lengths.cuda()
             spec, spec_lengths = spec.cuda(), spec_lengths.cuda()
@@ -554,8 +554,8 @@ def evaluate(hps, generator, eval_loader, writer_eval):
                     y=spec,
                     max_len=1000,
                     sdp_ratio=0.0 if not use_sdp else 1.0,
-                ) #                     emotion,
-                   # ja_bert,
+                )  # emotion,
+                # ja_bert,
                 y_hat_lengths = mask.sum([1, 2]).long() * hps.data.hop_length
 
                 mel = spec_to_mel_torch(
@@ -586,8 +586,8 @@ def evaluate(hps, generator, eval_loader, writer_eval):
                 audio_dict.update(
                     {
                         f"gen/audio_{batch_idx}_{use_sdp}": y_hat[
-                            0, :, : y_hat_lengths[0]
-                        ]
+                                                            0, :, : y_hat_lengths[0]
+                                                            ]
                     }
                 )
                 image_dict.update(
