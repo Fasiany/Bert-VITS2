@@ -6,13 +6,13 @@
 
 目前已经实测确认的事情：
 
-1.纯phoneme sequence 可行性:是
+1.new g2p 可行性:是
 
-2.phoneme sequence+emotion embeddings 可行性:是
+2.new g2p+emotion embeddings 可行性:是
 
-3.phoneme sequence+bert feature 可行性:待观察
+3.new g2p+bert feature :成功 
 
-4.phoneme sequence+bert feature+emotion embedddings 可行性:待充分实验
+4.new g2p+bert feature+emotion embedddings 实验中
 
 (估计这个项目还得花上不少时间吧)
 
