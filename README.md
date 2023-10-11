@@ -12,7 +12,9 @@
 
 3.new g2p+bert feature :成功 
 
-4.new g2p+bert feature+emotion embedddings 实验中
+4.new g2p+bert feature+emotion embedddings ....失败(TE.fw eeb aout)
+
+5.???? 实验中
 
 (估计这个项目还得花上不少时间吧)
 
