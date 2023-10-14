@@ -166,6 +166,3 @@ cython_debug/
 filelists/*
 !/filelists/esd.list
 data/*
-/CMP/
-/Bert-VITS2/
-/TestP/

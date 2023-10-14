@@ -2,7 +2,6 @@
 
 import sys, os
 import logging
-import IPython.display as ipd
 
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("markdown_it").setLevel(logging.WARNING)
@@ -17,15 +16,17 @@ logger = logging.getLogger(__name__)
 
 import torch
 import argparse
-import numpy as np
 import commons
 import utils
 from models import SynthesizerTrn
 from text.symbols import symbols
-from text import cleaned_text_to_sequence, get_bert, get_bert_train
+from text import cleaned_text_to_sequence, get_bert
+from text import get_bert_train
+from text.japanese import tokenizer
+from text.cleaner import clean_text
 import gradio as gr
 import webbrowser
-from text.japanese import g2p, text_normalize, tokenizer
+import numpy as np
 
 net_g = None
 
@@ -36,114 +37,116 @@ else:
     device = "cuda"
 
 
-def get_text(text, word2ph, phone, tone, language_str, wav_path):
+def get_text(text, language_str, hps):
+    norm_text, phone, tone, word2ph = clean_text(text, language_str)
+    print(tone, word2ph)
+    # tone.append(0)
+    # tone += [0] * 2
+    # word2ph = [1, 3, 3, 4, 0, 1]
+    # phone = ['_', '/', 'd', 'o', ']', 'k', 'o', '/', 'n', 'i', '*', '_']
+    print(phone)
     phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
+
     if hps.data.add_blank:
         phone = commons.intersperse(phone, 0)
         tone = commons.intersperse(tone, 0)
         language = commons.intersperse(language, 0)
-        nw = []
         for i in range(len(word2ph)):
-            nw.append(word2ph[i] * 2)
-        nw[0] += 1
-        word2ph = nw
-    emotion_path = wav_path.replace(".wav", ".emo.npy")
-    bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
-    bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+            word2ph[i] = word2ph[i] * 2
+        word2ph[0] += 1
+    acfs, _, _ = cleaned_text_to_sequence(['/', ']'], [1145, 1919], 'JP')
+    bert = get_bert(norm_text, word2ph, language_str, device)
+    # bert = bert.T
+    # for cnt, tx in enumerate(phone):
+    #     if tx in acfs:
+    #         print("apply accent zeros")
+    #         bert[cnt] = torch.zeros(bert.shape[1])
+    # bert = bert.T
+    # bert = get_bert_train(norm_text, bert, word2ph, tokenizer)
+    del word2ph
+    assert bert.shape[-1] == len(phone), phone
+
+    if language_str == "ZH":
+        bert = bert
+        ja_bert = torch.zeros(768, len(phone))
+    elif language_str == "JP":
+        ja_bert = bert
+        bert = torch.zeros(1024, len(phone))
+    else:
+        bert = torch.zeros(1024, len(phone))
+        ja_bert = torch.zeros(768, len(phone))
+
     assert bert.shape[-1] == len(
-        phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, {text}, {word2ph}"
-    assert language_str == 'JP', "This project only supports Japanese for now."
-    emotion = torch.FloatTensor(np.load(emotion_path))
-    # emotion = torch.zeros(1024*[0])
-    ja_bert = bert
-    # dimension info of bert:[1024, len(phonemes)]
-    assert ja_bert.shape[-1] == len(phone), f"""length of phonemes does not match input length of bert:{(
-        ja_bert.shape,
-        len(phone),
-        len(word2ph),
-        word2ph,
-        text,
-    )}"""
+        phone
+    ), f"Bert seq len {bert.shape[-1]} != {len(phone)}"
+
     phone = torch.LongTensor(phone)
     tone = torch.LongTensor(tone)
     language = torch.LongTensor(language)
-    return emotion, ja_bert, phone, tone, language
+    return bert, ja_bert, phone, tone, language
 
 
-def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language, emo, emo_all_zero=False):
+def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, language):
     global net_g
-    phones, tones, word2ph = g2p(text_normalize(text))
-    print(phones)
-    emotion, ja_bert, phones, tones, lang_ids = get_text(text, word2ph, phones, tones, language, emo)
-    print("infer:", phones)
-    print(phones)
-    print(tones)
-    print(lang_ids)
+    bert, ja_bert, phones, tones, lang_ids = get_text(text, language, hps)
     with torch.no_grad():
         x_tst = phones.to(device).unsqueeze(0)
         tones = tones.to(device).unsqueeze(0)
         lang_ids = lang_ids.to(device).unsqueeze(0)
-        if emo_all_zero:
-            emotion = torch.FloatTensor([0] * 1024)
-        emotion = emotion.to(device).unsqueeze(0)
-        # ja_bert = torch.zeros(ja_bert.shape)
+        bert = bert.to(device).unsqueeze(0)
         ja_bert = ja_bert.to(device).unsqueeze(0)
         x_tst_lengths = torch.LongTensor([phones.size(0)]).to(device)
         del phones
+        emo = torch.FloatTensor(np.load("ATRI_VD_WAV_48K/ATR_b102_051.emo.npy")).to(device).unsqueeze(0)
         speakers = torch.LongTensor([hps.data.spk2id[sid]]).to(device)
-        print("length of input：", x_tst.shape, ja_bert.shape, lang_ids
-              .shape, emotion.shape, x_tst_lengths.shape, tones.shape)
         audio = (
             net_g.infer(
                 x_tst,
                 x_tst_lengths,
                 speakers,
-                # emotion,
                 tones,
                 lang_ids,
-                # emotion,
+                # bert,
+                # emo,
+                bert,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
                 noise_scale_w=noise_scale_w,
                 length_scale=length_scale,
-            )[0][0, 0]  # emotion, ja_bert,
+            )[0][0, 0]
             .data.cpu()
             .float()
             .numpy()
         )
-        del x_tst, tones, lang_ids, emotion, x_tst_lengths, speakers
+        del x_tst, tones, lang_ids, bert, x_tst_lengths, speakers
+        torch.cuda.empty_cache()
         return audio
 
 
-def tts_fn(
-        text, speaker, sdp_ratio, noise_scale, noise_scale_w, length_scale, language
-):
+def tts_fn(text, speaker, sdp_ratio, noise_scale, noise_scale_w, length_scale, language):
+    slices = text.split("|")
+    audio_list = []
     with torch.no_grad():
-        audio = infer(
-            text,
-            sdp_ratio=sdp_ratio,
-            noise_scale=noise_scale,
-            noise_scale_w=noise_scale_w,
-            length_scale=length_scale,
-            sid=speaker,
-            language=language,
-        )
-        torch.cuda.empty_cache()
-    return "Success", (hps.data.sampling_rate, audio)
+        for slice in slices:
+            audio = infer(slice, sdp_ratio=sdp_ratio, noise_scale=noise_scale, noise_scale_w=noise_scale_w,
+                          length_scale=length_scale, sid=speaker, language=language)
+            audio_list.append(audio)
+            silence = np.zeros(hps.data.sampling_rate)  # 生成1秒的静音
+            audio_list.append(silence)  # 将静音添加到列表中
+    audio_concat = np.concatenate(audio_list)
+    return "Success", (hps.data.sampling_rate, audio_concat)
 
 
 if __name__ == "__main__":
-    P = 'AM'
-    S = "10000"
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-m", "--model", default=f"./logs/{P}/G_{S}.pth", help="path of your model"
+        "-m", "--model", default="./logs/as/G_8000.pth", help="path of your model"
     )
     parser.add_argument(
         "-c",
         "--config",
-        default="./configs/config_P.json",
+        default="./configs/config.json",
         help="path of your config file",
     )
     parser.add_argument(
@@ -168,7 +171,6 @@ if __name__ == "__main__":
             else "cpu"
         )
     )
-    print("length of symbols:", len(symbols))
     net_g = SynthesizerTrn(
         len(symbols),
         hps.data.filter_length // 2 + 1,
@@ -183,12 +185,6 @@ if __name__ == "__main__":
     speaker_ids = hps.data.spk2id
     speakers = list(speaker_ids.keys())
     languages = ["ZH", "JP"]
-    FILL_EMO_WITH_ZEROS = False
-    # FILL_EMO_WITH_ZEROS = False
-    ad = infer("1, 2, 3, それは?", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav',
-               FILL_EMO_WITH_ZEROS)
-    open("temp.wav", "wb").write(ipd.Audio(ad, rate=hps.data.sampling_rate, normalize=False).data)
-    exit()
     with gr.Blocks() as app:
         with gr.Row():
             with gr.Column():
@@ -234,5 +230,5 @@ if __name__ == "__main__":
             outputs=[text_output, audio_output],
         )
 
-    webbrowser.open("http://127.0.0.1:7860")
-    app.launch(share=args.share)
+    # webbrowser.open("http://127.0.0.1:7860")
+    app.launch(share=args.share, server_name="0.0.0.0", server_port=5860)
