@@ -224,7 +224,7 @@ class TextAudioSpeakerCollate:
         tone_padded = torch.LongTensor(len(batch), max_text_len)
         language_padded = torch.LongTensor(len(batch), max_text_len)
         emotion_padded = torch.FloatTensor(len(batch), 1024)
-        ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
+        ja_bert_padded = torch.FloatTensor(len(batch), 768, max_text_len)
         bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
         # Notice that Japanese and Chinese bert features have the same dimension info
 
