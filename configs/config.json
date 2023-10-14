@@ -2,8 +2,8 @@
   "train": {
     "log_interval": 200,
     "eval_interval": 1000,
-    "seed": 123094,
-    "epochs": 70,
+    "seed": 52,
+    "epochs": 6,
     "learning_rate": 0.0003,
     "betas": [
       0.8,
@@ -15,13 +15,12 @@
     "lr_decay": 0.999875,
     "segment_size": 16384,
     "init_lr_ratio": 1,
-    "warmup_epochs": 5,
+    "warmup_epochs": 0,
     "c_mel": 45,
     "c_kl": 1.0,
     "skip_optimizer": true
   },
   "data": {
-    "shuffle_seed": 1145,
     "training_files": "filelists/train.list",
     "validation_files": "filelists/val.list",
     "max_wav_value": 32768.0,
@@ -36,7 +35,8 @@
     "n_speakers": 256,
     "cleaned_text": true,
     "spk2id": {
-      "AT": 0
+      "AT": 0,
+      "PM": 1
     }
   },
   "model": {

@@ -166,5 +166,6 @@ cython_debug/
 filelists/*
 !/filelists/esd.list
 data/*
-/bert/bert-large-japanese-v2/
-/bert/bert-large-japanese-v2/pytorch_model.bin
+/CMP/
+/Bert-VITS2/
+/TestP/

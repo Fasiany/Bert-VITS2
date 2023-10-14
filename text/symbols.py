@@ -1,13 +1,14 @@
 _punctuation = ',.!?-~…'
 punctuation = list(_punctuation)
-pu_symbols = punctuation + ["SP", "UNK"]
+pu_symbols = punctuation + ["", "SP", "UNK", "pau"]
 pad = "_"
 OOR = 'T'
 
 num_zh_tones = 6
 
 # japanese
-ja_symbols = list('AEINOQUabdefghijklmnoprqstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#') + ['ky'] + ['gy'] + ['ry'] + ['hy'] + ['T'] + ['ts'] + ['sh'] + ['ch', 'by', 'ny', 'cl', 'py', 'my', 'dy']
+ja_symbols = (list('AEINOQUabdefghijklmnoprqstuvwyzʃʧʦɯɹəɥ⁼ʰ`→↓↑/]*^#') + ['ky'] + ['gy'] + ['ry'] + ['hy'] +
+              ['T'] + ['ts'] + ['sh'] + ['ch', 'by', 'ny', 'cl', 'py', 'my', 'dy'])
 num_ja_tones = 1
 
 

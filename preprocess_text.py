@@ -6,9 +6,7 @@ from typing import Optional
 from tqdm import tqdm
 import click
 from text.cleaner import clean_text
-# from text.japanese import process_bert
-from emotion_extract import preprocess_one
-from text.japanese_bert import tokenizer
+from text.japanese import tokenizer
 
 
 @click.command()
@@ -28,6 +26,7 @@ from text.japanese_bert import tokenizer
 @click.option("--val-per-spk", default=4)
 @click.option("--max-val-total", default=8)
 @click.option("--clean/--no-clean", default=True)
+@click.option("--ignore-if-unk-exists/--use-all-content", default=False)
 def main(
         transcription_path: str,
         cleaned_path: Optional[str],
@@ -37,24 +36,24 @@ def main(
         val_per_spk: int,
         max_val_total: int,
         clean: bool,
+        ignore_if_unk_exists: bool
 ):
     if cleaned_path is None:
         cleaned_path = transcription_path + ".cleaned"
-    errors = []
+
+    ignored = 0
+    errors = 0
+    total = 0
     if clean:
         out_file = open(cleaned_path, "w", encoding="utf-8")
         for line in tqdm(open(transcription_path, encoding="utf-8").readlines()):
-            fae = False
+            total += 1
             try:
                 utt, spk, language, text = line.strip().split("|")
-                # process_bert(text, utt.replace(".wav", ".bert.pt"))
-                preprocess_one(utt)
                 norm_text, phones, tones, word2ph = clean_text(text, language)
-                w2p = word2ph
-                # due to unknown reasons, the value of tokenized sequence does not keep the same
-                # assert sum(w2p) == sum(word2ph), f"{tokenizer.tokenize(text)}, {w2p}, {word2ph}, {norm_text}, {len(norm_text)}, {len(w2p)}, {len(word2ph)}"
-                # fae = True
-                # assert len(w2p) == len(tokenizer.tokenize(text))+2, f"{tokenizer.tokenize(text)}, {w2p}, {word2ph}, \n{norm_text}, {len(norm_text)}, {len(w2p)}, {len(word2ph)}"
+                if ignore_if_unk_exists and "[UNK]" in tokenizer.tokenize(norm_text):
+                    ignored += 1
+                    continue
                 out_file.write(
                     "{}|{}|{}|{}|{}|{}|{}\n".format(
                         utt,
@@ -63,22 +62,18 @@ def main(
                         norm_text,
                         " ".join(phones),
                         " ".join([str(i) for i in tones]),
-                        " ".join([str(i) for i in w2p]),
+                        " ".join([str(i) for i in word2ph]),
+                        # " ".join([str(i) for i in mask])
                     )
                 )
             except Exception as error:
-                if fae:
-                    raise Exception
-                print('error!')
-                errors.append((error, line))
+                errors += 1
+                print("err!", line, error)
 
         out_file.close()
 
         transcription_path = cleaned_path
-    if errors:
-        print(f"{len(errors)} error{'s' if len(errors) > 1 else ''} occurred during cleaning:")
-        for err in errors:
-            print(f'{repr(err[0])}:{err[1]}')
+
     spk_utt_map = defaultdict(list)
     spk_id_map = {}
     current_sid = 0
@@ -116,7 +111,8 @@ def main(
     config["data"]["spk2id"] = spk_id_map
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-
+    print(f"{ignored} records ignored, {errors} error{'s' if errors > 1 else ''} occurred,"
+          f" {round((total-ignored-errors)/total*100, 2) if total else 0}% successful({total-errors-ignored}/{total})")
 
 if __name__ == "__main__":
     main()

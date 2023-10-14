@@ -104,6 +104,13 @@ def numeric_feature_by_regex(regex, s):
     return int(match.group(1))
 
 
+def get_breath_group(s):
+    match = re.search(r"@(\d+)\+", s)
+    if not match:
+        return -1
+    return int(match.group(1))
+
+
 def g2p_with_accent_info(norm_text: str):
     """
     Parameters:
@@ -129,9 +136,17 @@ def g2p_with_accent_info(norm_text: str):
                                        f"Expect length of context to be {sum(new_word2ph) + 2}, found {len(fl)}\n"
                                        f"word2ph:{new_word2ph}")
     gof = 0
+    # print("GS")
+    i3 = 1
+    i3_next = 1
+    tx = 1
     for current in range(n):
         lab_curr = fl[current]
         p3 = re.search(r"-(.*?)\+", lab_curr).group(1)
+        tx = get_breath_group(fl[current+1]) if current < n - 1 else tx
+        if tx > 0:
+            i3_next = tx
+        # i3_next = get_breath_group(fl[current+1]) if current < n - 1 else i3
         if p3 == 'sil':
             if not current:
                 gof += 1
@@ -145,11 +160,15 @@ def g2p_with_accent_info(norm_text: str):
                     pass
                 if norm_text[rcm[current - gof]] == '!':
                     result.append('!')
+                    new_word2ph[rcm[current - gof]] += 1
                 elif e3:
                     result.append('?')
+                    # print("found ? at end")
                     new_word2ph[rcm[current - gof]] += 1
+                    # new_word2ph.append(1)
                 else:
                     result.append('*')
+                    # new_word2ph.append(1)
                     new_word2ph[rcm[current - gof]] += 1
             continue
         elif p3 == 'pau':
@@ -168,7 +187,10 @@ def g2p_with_accent_info(norm_text: str):
         f1 = numeric_feature_by_regex(r"/F:(\d+)_", lab_curr)
 
         a2_next = numeric_feature_by_regex(r"\+(\d+)\+", fl[current + 1])
-
+        if i3_next == i3 + 1:  # Test
+            result.append("^")  # BRF
+            new_word2ph[rcm[current + 1 - gof]] += 1
+            i3 = i3_next
         if a3 == 1 and a2_next == 1:
             pass
             # result.append("#")
@@ -179,7 +201,8 @@ def g2p_with_accent_info(norm_text: str):
         elif a2 == 1 and a2_next == 2:
             result.append("/")
             new_word2ph[rcm[current + 1 - gof]] += 1
-    if norm_text[-1] == '!' and not new_word2ph[-1] and result[-1] == '*':
+    # print("MID RES:", result)
+    if (norm_text[-1] == '!' or norm_text[-1] == '?') and not new_word2ph[-1]:
         i = -2
         try:
             while new_word2ph[i] < 2:
@@ -188,7 +211,7 @@ def g2p_with_accent_info(norm_text: str):
             new_word2ph[-1] += 1
         except IndexError:
             pass
-        result[-1] = '!'
+        result[-1] = norm_text[-1]
     assert len(result) == sum(new_word2ph)
     assert min(new_word2ph) >= 0
     return result, new_word2ph
@@ -412,7 +435,7 @@ def calculate_word2ph(norm_text: str) -> list:
         f"{word2phonemes}, {sc}\n"
         f"{sum(word2phonemes)}, {len(sc)}\n"
         f"{norm_text}"
-        )
+    )
     assert len(word2phonemes) == len(norm_text), ("If you get this error and the input of this function is ALREADY "
                                                   "normalized, this may be a logical bug, please "
                                                   "consider to report it on github\n"

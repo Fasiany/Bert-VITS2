@@ -4,7 +4,6 @@ from text import chinese, japanese, cleaned_text_to_sequence
 language_module_map = {"ZH": chinese, "JP": japanese}
 
 
-# pyopenjtalk should use the same symbol system(perhaps?)So keep this unchanged
 def clean_text(text, language):
     language_module = language_module_map[language]
     norm_text = language_module.text_normalize(text)
@@ -22,7 +21,7 @@ def clean_text_bert(text, language):
 
 def text_to_sequence(text, language):
     norm_text, phones, tones, word2ph = clean_text(text, language)
-    return cleaned_text_to_sequence(phones, tones, language)
+    return cleaned_text_to_sequence(phones, tones, language), mask
 
 
 if __name__ == "__main__":

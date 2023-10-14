@@ -101,7 +101,7 @@ def infer(text, sdp_ratio, noise_scale, noise_scale_w, length_scale, sid, langua
                 # emotion,
                 tones,
                 lang_ids,
-                emotion,
+                # emotion,
                 ja_bert,
                 sdp_ratio=sdp_ratio,
                 noise_scale=noise_scale,
@@ -134,8 +134,8 @@ def tts_fn(
 
 
 if __name__ == "__main__":
-    P = 'MUTI_BERT_ONLY'
-    S = "8000"
+    P = 'AM'
+    S = "10000"
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-m", "--model", default=f"./logs/{P}/G_{S}.pth", help="path of your model"
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     speaker_ids = hps.data.spk2id
     speakers = list(speaker_ids.keys())
     languages = ["ZH", "JP"]
-    FILL_EMO_WITH_ZEROS = True
+    FILL_EMO_WITH_ZEROS = False
     # FILL_EMO_WITH_ZEROS = False
     ad = infer("1, 2, 3, それは?", 0.2, 0.667, 0.8, 1, 'PM', 'JP', 'ATRI_VD_WAV_48K/ATR_b102_051.wav',
                FILL_EMO_WITH_ZEROS)

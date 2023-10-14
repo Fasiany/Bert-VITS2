@@ -46,7 +46,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         self.min_text_len = getattr(hparams, "min_text_len", 1)
         self.max_text_len = getattr(hparams, "max_text_len", 300)
 
-        random.seed(hparams.shuffle_seed)
+        # random.seed(hparams.shuffle_seed)
+        random.seed(1234)
         random.shuffle(self.audiopaths_sid_text)
         self._filter()
 
@@ -89,13 +90,13 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         # separate filename, speaker_id and text
         audiopath, sid, language, text, phones, tone, word2ph = audiopath_sid_text
 
-        emotion, ja_bert, phones, tone, language = self.get_text(
+        bert, ja_bert, phones, tone, language = self.get_text(
             text, word2ph, phones, tone, language, audiopath
         )
 
         spec, wav = self.get_audio(audiopath)
         sid = torch.LongTensor([int(self.spk_map[sid])])
-        return phones, spec, wav, sid, emotion, tone, language, ja_bert
+        return phones, spec, wav, sid, tone, language, bert, ja_bert
 
     def get_audio(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
@@ -153,13 +154,13 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         emotion_path = wav_path.replace(".wav", ".emo.npy")
         try:
             bert = torch.load(bert_path)
-            bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+            # bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
             assert bert.shape[1] == len(
                 phone), f"length of phonemes does not match input length of bert:{phone}, {bert.shape}"
         except:
             bert = get_bert(text, word2ph, language_str, "cuda", tokenizer)
             torch.save(bert, bert_path)
-            bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
+            # bert = get_bert_train(text_normalize(text), bert, word2ph, tokenizer)
             assert bert.shape[-1] == len(
                 phone), f"length of phonemes does not match input length of bert:{len(phone)}, {bert.shape}, \n{text}\n{word2ph}"
         assert language_str == 'JP', "This project only supports Japanese for now."
@@ -176,10 +177,11 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         phone = torch.LongTensor(phone)
         tone = torch.LongTensor(tone)
         language = torch.LongTensor(language)
+        bert = torch.zeros(1024, len(phone))
         # ja_bert = ja_bert.transpose(-1, -2)
         # emotion = torch.FloatTensor(1024 * [0])
         # ja_bert = torch.zeros(ja_bert.shape)
-        return emotion, ja_bert, phone, tone, language
+        return bert, ja_bert, phone, tone, language
 
     def get_sid(self, sid):
         sid = torch.LongTensor([int(sid)])
@@ -222,7 +224,8 @@ class TextAudioSpeakerCollate:
         tone_padded = torch.LongTensor(len(batch), max_text_len)
         language_padded = torch.LongTensor(len(batch), max_text_len)
         emotion_padded = torch.FloatTensor(len(batch), 1024)
-        ja_bert_padded = torch.FloatTensor(len(batch), 768, max_text_len)
+        ja_bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
+        bert_padded = torch.FloatTensor(len(batch), 1024, max_text_len)
         # Notice that Japanese and Chinese bert features have the same dimension info
 
         spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
@@ -233,6 +236,7 @@ class TextAudioSpeakerCollate:
         spec_padded.zero_()
         wav_padded.zero_()
         emotion_padded.zero_()
+        bert_padded.zero_()
         ja_bert_padded.zero_()
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -251,17 +255,19 @@ class TextAudioSpeakerCollate:
 
             sid[i] = row[3]
 
-            emotion = row[4]
-            emotion_padded[i, :] = emotion
-
-            tone = row[5]
+            tone = row[4]
             tone_padded[i, :tone.size(0)] = tone
 
-            lan = row[6]
+            lan = row[5]
             language_padded[i, :lan.size(0)] = lan
+
+            bert = row[6]
+            bert_padded[i, :, : bert.size(1)] = bert
 
             ja_bert = row[7]
             ja_bert_padded[i, :, : ja_bert.size(1)] = ja_bert
+
+
 
         return (
             text_padded,
@@ -271,9 +277,9 @@ class TextAudioSpeakerCollate:
             wav_padded,
             wav_lengths,
             sid,
-            emotion_padded,
             tone_padded,
             language_padded,
+            bert_padded,
             ja_bert_padded,
         )
 

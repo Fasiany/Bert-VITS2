@@ -35,13 +35,13 @@ def process_line(line):
         assert bert.shape[-1] == len(phone)
     except Exception:
         bert = get_bert(text, word2ph, language_str, device)
-        assert bert.shape[-1] == len(phone)
+        assert bert.shape[-1] == len(phone), (word2ph, text, bert.shape, phone)
         torch.save(bert, bert_path)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", type=str, default="configs/config_P.json")
+    parser.add_argument("-c", "--config", type=str, default="configs/config.json")
     parser.add_argument("--num_processes", type=int, default=2)
     args = parser.parse_args()
     config_path = args.config

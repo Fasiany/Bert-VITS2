@@ -20,8 +20,6 @@ def japanese_convert_numbers_to_words(text: str) -> str:
     return res
 
 
-
-
 rep_map = {
     "：": ",",
     "；": ",",
@@ -55,7 +53,7 @@ def text_normalize(text):
 tokenizer = AutoTokenizer.from_pretrained(BERT)
 
 
-def g2p(norm_text, apply_accent_info=False):
+def g2p(norm_text, apply_accent_info=True):
     if apply_accent_info:
         return g2p_a(norm_text)
     phs = pyopenjtalk.g2p(norm_text).split(" ")
@@ -67,6 +65,7 @@ def g2p(norm_text, apply_accent_info=False):
 
 
 def g2p_a(norm_text):
+    # print("g2p_a called")
     phs, word2ph = g2p_with_accent_info(norm_text)
     phonemes = ['_'] + phs + ['_']
     tones = [0 for _ in phonemes]
