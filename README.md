@@ -37,7 +37,7 @@
 python preprocess.py --transcription-path your_dataset_list [--train-path training_dataset_path] [--val-path evaluating_dataset_path] [--config-path config_file_path] 
 ~~~
 
-注：默认值为filelists/train.list, filelists/val.list, configs/config.json
+注：默认值为filelists/train.list, filelists/val.list, configs/config.json，下同
 
 2.生成bert特征信息(你也许应该把训练集目录下的*.pt文件先删干净)：
 
