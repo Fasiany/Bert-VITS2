@@ -29,6 +29,8 @@
 
 # Usage
 
+训练集列表格式请参照filelists/esd.list文件格式
+
 1.预处理音素列表等信息：
 
 ~~~bash
