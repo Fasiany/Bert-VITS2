@@ -39,7 +39,7 @@ python preprocess.py --transcription-path your_dataset_list [--train-path traini
 
 注：默认值为filelists/train.list, filelists/val.list, configs/config.json，下同
 
-指定--ignore-if-unk-exists选项将丢弃含有未知字符的tokenized sequence的训练数据，可防止训练报错。训练时遇到此类数据算法将发出警告并尝试自行修正问题
+指定--ignore-if-unk-exists选项将丢弃tokenize后含有未知字符的训练数据，可防止训练报错。训练时遇到此类数据算法将发出警告并尝试自行修正问题
 
 2.生成bert特征信息(你也许应该把训练集目录下的*.pt文件先删干净)：
 
