@@ -6,7 +6,7 @@
 
 仍在开发中，目前项目应用了新g2p算法与来自**HTSEngine**的基本语调/停顿辅助信息。彻底重写后的g2p算法大幅提升数据利用率，鲁棒性与准确度(具体表现为g2p报错概率极大幅度地降低并提升bert特征信息计算流程准确性)
 
-请注意训练需要load底模，项目只支持日语训练，推理时可以放简单的英语单词(复杂的会逐个念字母)
+训练需要load底模，只支持日语训练(阉割了中文部分，因为中文部分没有任何改动~~而且处理起来还需要花额外的精力~~。需要中文直接使用原项目即可)，推理时可以放简单的英语单词(复杂的会逐个念字母)
 
 实验表：
 
@@ -76,3 +76,5 @@ VITS2 Backbone with bert
 + [p0p4k/vits2_pytorch](https://github.com/p0p4k/vits2_pytorch)
 + [svc-develop-team/so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)
 + [PaddlePaddle/PaddleSpeech](https://github.com/PaddlePaddle/PaddleSpeech)
++ [CjangCjengh/japanese_g2p](https://github.com/CjangCjengh/japanese_g2p)
++ [https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html](https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html)

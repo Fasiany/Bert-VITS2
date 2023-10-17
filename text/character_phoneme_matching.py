@@ -111,14 +111,15 @@ def get_breath_group(s):
     return int(match.group(1))
 
 
-def g2p_with_accent_info(norm_text: str):
+def g2p_with_accent_info(norm_text: str, use_marine=False):
     """
     Parameters:
         norm_text: The normalized text
+        use_marine: Whether to use marine to get accent information
     returns phonemes sequence with accent information and pause flags and the word2ph sequence of it
     """
     # https://r9y9.github.io/ttslearn/latest/notebooks/ch10_Recipe-Tacotron.html#10.2-Tacotron-2-%E3%82%92%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E9%81%A9%E7%94%A8%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E5%A4%89%E6%9B%B4
-    fl = pjt.extract_fullcontext(norm_text)
+    fl = pjt.extract_fullcontext(norm_text, run_marine=use_marine)
     n = len(fl)
     result = []
     word2phonemes = calculate_word2ph(norm_text)
@@ -187,10 +188,6 @@ def g2p_with_accent_info(norm_text: str):
         f1 = numeric_feature_by_regex(r"/F:(\d+)_", lab_curr)
 
         a2_next = numeric_feature_by_regex(r"\+(\d+)\+", fl[current + 1])
-        if i3_next == i3 + 1:  # Test
-            result.append("^")  # BRF
-            new_word2ph[rcm[current + 1 - gof]] += 1
-            i3 = i3_next
         if a3 == 1 and a2_next == 1:
             pass
             # result.append("#")
@@ -443,7 +440,7 @@ def calculate_word2ph(norm_text: str) -> list:
                                                   )
     assert min(word2phonemes) >= 0, ("ERR minimum less than 0.If you get this error and the "
                                      "input of this function is ALREADY "
-                                     "normalized, this may be a logical bug, please "
+                                     "normalized, this may be a SERIOUS logical bug, please "
                                      "consider to report it on github"
                                      )
     return word2phonemes
