@@ -1,6 +1,9 @@
 import torch
 
 from text.symbols import *
+from text.character_phoneme_matching import LCS_solver
+
+SHOW_EXTRA_INFO = True
 
 _symbol_to_id = {s: i for i, s in enumerate(symbols)}
 
@@ -21,24 +24,56 @@ def cleaned_text_to_sequence(cleaned_text, tones, language):
 
 
 def get_bert_train(norm_text, bert, word2ph, tokenizer):
+    nn = len(norm_text)
     w2p = []
-    # word2ph.pop(0)
-    # word2ph.pop(-1)
     off = 1
-    # print(word2ph)
     assert len(norm_text) == len(word2ph) - 2, f"{norm_text}, {len(word2ph)}\n{word2ph}"
     unk_exists = False
-    for x in tokenizer.tokenize(norm_text):
-        if x == '[UNK]':
-            x = "-"
-            unk_exists = True
+    tokenized = tokenizer.tokenize(norm_text)
+    nt = len(tokenized)
+    lre = {}
+    cor_table = {}
+    if "[UNK]" in tokenized:
+        if SHOW_EXTRA_INFO:
             print(f"Warning:Sentence {norm_text} contains character(s) that is "
-                  f"unknown to the tokenizer([UNK] token at index {off}).If you get "
+                  f"unknown to the tokenizer([UNK] tokens).If you get "
                   f"errors after this warning, try to remove this sentence from the dataset list."
-                  f"The function will consider [UNK] to have 1 character, which may throw exceptions."
+                  f"The algorithm will ATTEMPT to fix this problem automatically, which may throw exceptions."
                   f"You can also use --ignore-if-unk-exists opinion while running"
                   f" preprocess_text.py to avoid this problem")
-        # print(f"{x}({off}-{off + len(x.replace('#', '')) - 1}):{sum(word2ph[off:off + len(x.replace('#', ''))])}")
+        sqt = []
+        for tv in tokenized:
+            if tv == "[UNK]":
+                continue
+            sqt += list(tv.replace("#", ""))
+        lre, _ = LCS_solver(sqt, list(norm_text))
+
+        for x in lre.keys():
+            cor_table[x[0]] = x[1]
+    off2 = 0
+    for cnt, x in enumerate(tokenized):
+        if x == '[UNK]':
+            # print(lre)
+            if off != 1:
+                std = cor_table[max(off - 1 - off2, 1)]
+                end = max(cor_table[off - off2], 1)
+            else:
+                std = 1
+                end = cor_table[1]
+            x = "-" * (end - std - 1 + (1 if off == 1 else 0))
+            off2 += len(x)
+            # print(list(norm_text))
+            # print(sqt)
+            # print(cor_table)
+            # print(off, std, end)
+            if SHOW_EXTRA_INFO:
+                print(f"[UNK AUTOFIX]RAW:{norm_text[max(0, std - 5):min(nn, end + 7)]}\n\t\tTOKENIZED:"
+                      f"{tokenized[max(0, cnt - 1)].replace('#', '').replace('[UNK]', '')}[UNRECOGNIZED]"
+                      f"{tokenized[min(nt - 1, cnt + 1)].replace('#', '')}\n\t\tCalculated "
+                      f"length:{end - std - 1 + (1 if off == 1 else 0)}"
+                      f"(Unrecognized content starts at index {std + (1 if off > 1 else 0)} and ends at index {end - 1})")
+            unk_exists = True
+            assert end - std - 1 + (1 if off == 1 else 0)
         w2p.append(sum(word2ph[off:off + len(x.replace("#", ""))]))
         off += len(x.replace("#", ""))
     w2p = [word2ph[0]] + w2p + [word2ph[-1]]
@@ -48,12 +83,12 @@ def get_bert_train(norm_text, bert, word2ph, tokenizer):
         if not unk_exists:
             raise value
         raise RuntimeError(f"Word2ph length mismatch the target length, and at least one [UNK] has been detected in "
-                           f"tokenized sequence.Look up to inspect the warning(before traceback) of this sentence "
+                           f"tokenized sequence.This means the auto fixing algorithm has failed(Which also means there"
+                           f" might be bugs in the algorithm, please consider to report it on github)."
+                           f"Look up to inspect the warning(before traceback, "
+                           f"if SHOW_EXTRA_INFO is True) of this sentence "
                            f"to get potential solution:\n{repr(value)}")
     phone_level_feature = []
-    # [1, 2, 3, 3, 2, 6, 3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 2, 1, 3, 5, 2, 5, 2, 2, 2, 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 4, 2, 4, 2, 2, 3, 1, 2, 1, 1, 1, 3, 1]
-    # [3, 4, 6, 6, 4, 12, 6, 6, 6, 6, 6, 4, 6, 6, 6, 6, 4, 2, 6, 10, 4, 10, 4, 4, 4, 0, 0, 0, 0, 0, 0, 2, 4, 6, 4, 2, 8, 4, 8, 4, 4, 6, 2, 4, 2, 2, 2, 6, 2]
-    # print(f'processing bert with:{w2p}\n{len(w2p)}\n{word2ph}')
     for i in range(len(w2p)):
         if not w2p[i]:
             continue

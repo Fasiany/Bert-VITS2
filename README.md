@@ -49,7 +49,7 @@ python bert_gen.py [-c your_config_file]
 
 3.启动训练
 
-开始前请确保已经设置完RANK, WORLD_SIZE, MASTER_ADDR与MASTER_PORT
+开始前请确保已经设置完RANK, WORLD_SIZE, MASTER_ADDR与MASTER_PORT环境变量
 
 ~~~bash
 python train_ms.py -c config_file -m model_name
